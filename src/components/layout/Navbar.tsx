@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Menu, X, PlusCircle, ShieldCheck, UserCheck, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, PlusCircle, ShieldCheck, UserCheck, LogOut, ChevronDown, HelpCircle } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
@@ -9,6 +9,7 @@ export const Navbar: React.FC = () => {
     setIsListPropertyOpen,
     setIsAdminOpen,
     setIsAuthOpen,
+    setIsHelpOpen,
     currentUser,
     logout,
   } = useApp();
@@ -36,45 +37,82 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center space-x-1 text-sm font-medium">
-              <button
-                onClick={() => {
-                  setActiveTab('places');
-                  const el = document.getElementById('discovery-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`px-4 py-2 rounded-full transition-all ${
-                  activeTab === 'places'
-                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
-                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
-                }`}
-              >
-                Find a place
-              </button>
-
+            <nav className="hidden lg:flex items-center space-x-1 text-xs xl:text-sm font-medium">
               <button
                 onClick={() => {
                   setActiveTab('flatmates');
                   const el = document.getElementById('discovery-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className={`px-4 py-2 rounded-full transition-all ${
+                className={`px-3 py-1.5 rounded-full transition-all ${
                   activeTab === 'flatmates'
                     ? 'text-forest-800 bg-forest-50/80 font-semibold'
                     : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
                 }`}
               >
-                Find a flatmate
+                Flatmates
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('family_stays');
+                  const el = document.getElementById('discovery-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 ${
+                  activeTab === 'family_stays'
+                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
+                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
+                }`}
+              >
+                <span>Family Stays</span>
+                <span className="text-[10px] bg-sand-200/90 text-forest-900 font-bold px-1.5 py-0.2 rounded-full">
+                  Meals
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('entire_flats');
+                  const el = document.getElementById('discovery-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`px-3 py-1.5 rounded-full transition-all ${
+                  activeTab === 'entire_flats'
+                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
+                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
+                }`}
+              >
+                Entire Flats
+              </button>
+
+              <button
+                onClick={() => {
+                  const el = document.getElementById('our-founders');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-3 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all"
+              >
+                Founders
               </button>
 
               <button
                 onClick={() => setIsListPropertyOpen(true)}
-                className="px-4 py-2 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
+                className="px-3 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
               >
-                <span>List a property</span>
-                <span className="text-xs bg-forest-100 text-forest-700 font-semibold px-2 py-0.5 rounded-full ml-1">
-                  ₹0 Fee
+                <span>List Property</span>
+                <span className="text-[11px] bg-forest-100 text-forest-700 font-semibold px-1.5 py-0.2 rounded-full ml-0.5">
+                  ₹0
                 </span>
+              </button>
+
+              <button
+                onClick={() => setIsHelpOpen(true)}
+                className="px-2.5 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
+                title="Help Centre & Safety FAQs"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-forest-700" />
+                <span>Help</span>
               </button>
             </nav>
           </div>
@@ -115,6 +153,17 @@ export const Navbar: React.FC = () => {
                     </div>
 
                     <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          setIsHelpOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
+                      >
+                        <HelpCircle className="w-4 h-4 text-forest-600" />
+                        <span>Help Centre & Tickets</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
@@ -191,33 +240,58 @@ export const Navbar: React.FC = () => {
           <div className="grid grid-cols-2 gap-2 pt-2">
             <button
               onClick={() => {
-                setActiveTab('places');
-                setMobileMenuOpen(false);
-                const el = document.getElementById('discovery-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className={`p-3 rounded-xl text-center text-sm font-semibold transition-all ${
-                activeTab === 'places'
-                  ? 'bg-forest-600 text-white shadow-sm'
-                  : 'bg-white border border-charcoal-200 text-charcoal-700'
-              }`}
-            >
-              Find a place
-            </button>
-            <button
-              onClick={() => {
                 setActiveTab('flatmates');
                 setMobileMenuOpen(false);
                 const el = document.getElementById('discovery-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className={`p-3 rounded-xl text-center text-sm font-semibold transition-all ${
+              className={`p-3 rounded-xl text-center text-xs font-semibold transition-all ${
                 activeTab === 'flatmates'
                   ? 'bg-forest-600 text-white shadow-sm'
                   : 'bg-white border border-charcoal-200 text-charcoal-700'
               }`}
             >
-              Find a flatmate
+              Flatmates & Rooms
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('family_stays');
+                setMobileMenuOpen(false);
+                const el = document.getElementById('discovery-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className={`p-3 rounded-xl text-center text-xs font-semibold transition-all ${
+                activeTab === 'family_stays'
+                  ? 'bg-forest-600 text-white shadow-sm'
+                  : 'bg-white border border-charcoal-200 text-charcoal-700'
+              }`}
+            >
+              Family Stays
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('entire_flats');
+                setMobileMenuOpen(false);
+                const el = document.getElementById('discovery-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className={`p-2.5 rounded-xl text-center text-xs font-semibold transition-all ${
+                activeTab === 'entire_flats'
+                  ? 'bg-forest-600 text-white shadow-sm'
+                  : 'bg-white border border-charcoal-200 text-charcoal-700'
+              }`}
+            >
+              Entire Flats
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                const el = document.getElementById('our-founders');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="p-2.5 rounded-xl text-center text-xs font-semibold bg-white border border-charcoal-200 text-charcoal-700 hover:text-forest-700"
+            >
+              Our Founders
             </button>
           </div>
 
@@ -231,6 +305,17 @@ export const Navbar: React.FC = () => {
             >
               <PlusCircle className="w-4 h-4 text-sand-300" />
               <span>List a property (Owner / Manager)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsHelpOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center space-x-2"
+            >
+              <HelpCircle className="w-4 h-4 text-forest-600" />
+              <span>Help Centre & Safety FAQs</span>
             </button>
 
             <button

@@ -1,4 +1,4 @@
-import { ProviderType, RoomType } from '../types';
+import { ProviderType, RoomType, Property } from '../types';
 
 export function formatINR(amount: number): string {
   if (amount === 0) return '₹0';
@@ -71,4 +71,42 @@ export function formatRoomType(roomType: RoomType): string {
     default:
       return 'Room';
   }
+}
+
+export interface CostBreakdown {
+  monthlyRent: number;
+  securityDeposit: number;
+  maintenance: number;
+  brokerageFee: number;
+  optionalMealCost: number;
+  recurringMonthly: number;
+  totalMoveInCost: number;
+}
+
+/**
+ * Calculates transparent move-in and recurring costs.
+ * Strictly guarantees that included meals are not double-counted.
+ */
+export function calculateMoveInCost(property: Partial<Property>): CostBreakdown {
+  const monthlyRent = property.rent || 0;
+  const securityDeposit = property.deposit || 0;
+  const maintenance = property.maintenance || 0;
+  const brokerageFee = property.brokerageFee || 0;
+  const optionalMealCost =
+    property.category === 'family_stays' && property.mealsOffered === 'optional_extra'
+      ? property.optionalMealCost || 0
+      : 0;
+
+  const recurringMonthly = monthlyRent + maintenance + optionalMealCost;
+  const totalMoveInCost = monthlyRent + securityDeposit + maintenance + brokerageFee;
+
+  return {
+    monthlyRent,
+    securityDeposit,
+    maintenance,
+    brokerageFee,
+    optionalMealCost,
+    recurringMonthly,
+    totalMoveInCost,
+  };
 }

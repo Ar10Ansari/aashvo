@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { DELHI_NCR_LOCALITIES } from '../../data/seedData';
+import { POPULAR_LOCALITIES } from '../../data/seedData';
 import { RotateCcw, Search } from 'lucide-react';
 import { formatINR } from '../../utils/formatters';
 
@@ -25,7 +25,7 @@ export const PropertyFilters: React.FC = () => {
         {/* Locality Filter */}
         <div>
           <label htmlFor="filter-locality-select" className="block text-xs font-bold uppercase tracking-wider text-charcoal-500 mb-1.5">
-            Locality / Cluster
+            Locality / City
           </label>
           <select
             id="filter-locality-select"
@@ -33,7 +33,7 @@ export const PropertyFilters: React.FC = () => {
             onChange={e => setFilters(prev => ({ ...prev, locality: e.target.value }))}
             className="w-full bg-ivory-100 rounded-xl px-3.5 py-2.5 text-sm font-medium text-charcoal-800 border border-charcoal-200/50 focus:outline-none focus:ring-2 focus:ring-forest-600 cursor-pointer"
           >
-            {DELHI_NCR_LOCALITIES.map(loc => (
+            {POPULAR_LOCALITIES.map(loc => (
               <option key={loc} value={loc}>
                 {loc}
               </option>

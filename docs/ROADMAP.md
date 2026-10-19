@@ -1,44 +1,57 @@
 # Aashvo — Product & Technical Roadmap
 
-**Version:** 2026.1  
-**Lead:** Founding CTO & Product Team  
+**Version:** 2.1.0-ConfirmedHierarchy  
+**Lead:** Founding CTO & Product Architecture, Aashvo  
+**Business Positioning:** Pan-India Affordable-Living Platform for Students and Working Professionals  
+**Brand Tagline:** *Find your place. Find your people.*
 
 ---
 
-## Roadmap Overview
+## 1. Confirmed Product Hierarchy & Living Experience Architecture
 
 ```
-[Phase 1: Pilot MVP (Gurugram & South Delhi)]
-  ├── Sprint 1: Brand System, Architectural Foundation & Hero Experience (Completed)
-  ├── Sprint 2: Transparent Property Discovery & Real-Time Filtering
-  ├── Sprint 3: Guided Listing Management & Auth Simulation/Integration
-  ├── Sprint 4: Flatmate Compatibility & Lifestyle Matching
-  ├── Sprint 5: Safety, Reporting & Admin Moderation Console
-  └── Sprint 6: Quality Gates, E2E Browser Testing & Release Audit
-         │
-         ▼
-[Phase 2: Supply Expansion (Q1 2027)]
-  ├── University Outreach: North Campus DU & Noida Tech Hubs
-  ├── WhatsApp Business API Webhooks for Instant Freshness Checks
-  ├── Digital Rental Agreement & Lease Drafting Helpers
-  └── RWA & Society Gate Verification Partnerships
-         │
-         ▼
-[Phase 3: Platform Maturity (Q2 2027)]
-  ├── Integrated Escrow Security Deposit Management
-  ├── Video Walkthrough & 360 Virtual Tours
-  └── Mobile Native App (React Native / PWA Enhanced)
+[Aashvo Core Marketplace Platform]
+  │
+  ├── PRIMARY FEATURE A: Flatmates & Roommates
+  │     ├── People seeking compatible flatmates to team up for a home
+  │     ├── People with a vacant room seeking a compatible roommate
+  │     ├── People seeking a private or shared room in an existing flat
+  │     └── Lifestyle compatibility: food habits, sleep routines, cleanliness, guests
+  │
+  ├── PRIMARY FEATURE B: Affordable Family Stays (Resident Host Homes)
+  │     ├── Strict eligibility: Resident families living in the same home ONLY
+  │     ├── Prohibited: Non-resident landlords, commercial brokers, managers, PG agencies
+  │     ├── Canonical meal models: 'included' in rent, 'optional_extra', or 'none' (self-catering)
+  │     └── Transparent cost breakdowns: zero double-counting of included food costs
+  │
+  └── SECONDARY FEATURE C: Entire Flats & Apartments
+        ├── Independent flats and apartments for eligible owners/verified managers
+        ├── Transparent upfront brokerage disclosure (₹0 for owners)
+        └── Full itemized move-in outlays preserved without dominating the platform
 ```
 
 ---
 
-## Detailed Sprint Milestones (MVP Release)
+## 2. Confirmed 9-Stage Implementation Sequence
 
-| Sprint | Objective | Deliverables | Verification Criteria |
-| :--- | :--- | :--- | :--- |
-| **Sprint 1** | Foundation & Brand | Design tokens (`#F5F3ED`, `#244737`, `#D9B98C`, `#292D2A`), Editorial Typography, Illustrated Hero, Responsive Navigation. | Pixel-perfect render, smooth entrance animation, 100% responsive. |
-| **Sprint 2** | Property Discovery | Listing cards, comprehensive search bar, cost breakdown calculator, freshness badge, detail drawer/modal. | Filter by budget, locality, occupancy; transparent deposit + maintenance displayed. |
-| **Sprint 3** | Provider Flow & Auth | 5-step property submission wizard, owner/broker label, photo management, user profile/dashboard. | Form validation, listing status (Active/Pending), mock/Supabase data layer. |
-| **Sprint 4** | Flatmate Matcher | Flatmate cards, lifestyle questionnaire (diet, habits, pets), interest request messaging. | Search & match flatmates with compatible living preferences. |
-| **Sprint 5** | Admin & Safety | Moderation panel, flag/report mechanism, fake listing prevention, role authorization. | Review pending submissions, ban bad actors, update freshness. |
-| **Sprint 6** | Launch Readiness | Comprehensive test suite, a11y audit, lighthouse performance audit, browser subagent walkthrough. | Zero build warnings, WCAG AA compliance, verified cross-browser. |
+The implementation sequence prioritizes technical security, database integrity, and primary product workflows before secondary features and marketplace optimization:
+
+| Priority | Implementation Stage | Core Technical Deliverables | Security & Quality Gates |
+| :---: | :--- | :--- | :--- |
+| **1** | **Real Supabase Connection & Database Foundation** | Provision AWS Mumbai (`ap-south-1`) Supabase instance, apply SQL migrations (`20261018`, `20261019`, `20261020`), configure strict search_path, RLS, and secure connection pooling. | Zero public table grants without RLS; verify anti-tampering triggers against malicious SQL/REST calls. |
+| **2** | **Real Authentication & Progressive Profiles** | Google OAuth Client ID integration, Email/Password sign-up with cryptographic verification links, secure session cookies, progressive profile completion engine (phone verification requested strictly at protected contact/listing points). | Public browsing without auth; JWT role claims enforced server-side; zero client-controlled role elevation. |
+| **3** | **Secure Listing Persistence & Photo Storage** | Supabase Storage bucket (`property-photos`) with 5MB file cap, strict MIME validation, user-folder isolation, secure presigned URLs, and public address masking (hiding door/flat numbers and private GPS coordinates). | Server-side MIME validation; prevention of arbitrary binary uploads; zero public exposure of private addresses. |
+| **4** | **Flatmate & Roommate Discovery (Primary A)** | Flatmate profile creation, room-offer vs room-seeking toggle, multi-dimensional lifestyle filters (dietary/food habits, sleep schedule, cleanliness, guest policy, budget ceiling, target clusters). | Distinction between flatmate profiles and property listings; verified phone barrier prior to connection requests. |
+| **5** | **Family Stays with Meal Options (Primary B)** | Resident-family host portal, mandatory co-living declaration (`chk_family_stay_eligibility`), meal configuration (`included`, `optional_extra`, `none`), move-in outlay calculator with zero double-counting of meals. | Prohibit non-resident landlords and brokers at database level; verify rental cost calculation formulas. |
+| **6** | **Nationwide Location Search & Assisted Geolocation** | Option A (Current device GPS via `navigator.geolocation` with permission denial and timeout fallbacks) + Option B (Manual selection by Indian State/UT, City, Locality, PIN Code). | GPS permission denial handled seamlessly; zero hardcoded Delhi NCR restrictions; privacy masking on public views. |
+| **7** | **Inquiry Workflows, Moderation & Operational Safety** | WhatsApp/Email inquiry notifications, 14-day availability reconfirmation cycle, community report submission, admin moderation console for listing suspension. | Direct provider phone numbers masked until inquiry verification; audited moderation log. |
+| **8** | **Matching Engine, Notifications & Marketplace Analytics** | Lifestyle compatibility scoring algorithm, WhatsApp Business API webhooks for freshness checks, tenant-host match alerts. | Encrypted webhook secrets; rate-limited outbound notifications; DPDP Act compliance. |
+| **9** | **Entire-Flat Experience Improvements (Secondary C)** | Advanced filters for independent flats, society amenities, direct owner vs broker fee badge, preserving secondary navigation hierarchy. | Secondary placement preserved on homepage and discovery tabs; zero regression of existing functionality. |
+
+---
+
+## 3. Marketplace Monetization & Free Access Policy
+
+- **Initial Stage: 100% Free Access:** Basic browsing, listing creation for resident families and direct owners, and flatmate matching remain completely free during market validation.
+- **Zero Premature Paywalls:** No recurring subscriptions, pay-per-contact locks, or paid promotion banners will be introduced until marketplace density and trust benchmarks are firmly established.
+- **Transparent Brokerage:** Direct owners always pay ₹0 fee; verified commercial managers must disclose upfront brokerage before publishing.

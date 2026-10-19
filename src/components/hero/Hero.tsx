@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { Search, MapPin, IndianRupee, Home, Users } from 'lucide-react';
 import { ArchitecturalLandscape } from './ArchitecturalLandscape';
-import { DELHI_NCR_LOCALITIES } from '../../data/seedData';
+import { POPULAR_LOCALITIES } from '../../data/seedData';
 
 export const Hero: React.FC = () => {
   const { filters, setFilters, activeTab, setActiveTab } = useApp();
@@ -26,53 +26,77 @@ export const Hero: React.FC = () => {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-20">
         {/* Subtle Pill Eyebrow */}
-        <div className="inline-flex items-center space-x-2 bg-white/80 border border-charcoal-200/60 px-3.5 py-1.5 rounded-full shadow-sm mb-6 sm:mb-8">
-          <span className="w-2 h-2 rounded-full bg-forest-600 animate-pulse" />
-          <span className="text-xs font-semibold tracking-wide uppercase text-forest-800">
-            Delhi NCR Pilot • Gurugram & South Delhi
-          </span>
-          <span className="text-charcoal-300">|</span>
+        <div className="inline-flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-white/80 border border-charcoal-200/60 px-3.5 py-1.5 rounded-2xl sm:rounded-full shadow-sm mb-6 sm:mb-8 max-w-full">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-forest-600 animate-pulse" />
+            <span className="text-xs font-semibold tracking-wide uppercase text-forest-800">
+              Made for moving, anywhere in India
+            </span>
+          </div>
+          <span className="hidden sm:inline text-charcoal-300">|</span>
           <span className="text-xs text-charcoal-500 font-medium">100% Zero-Brokerage for Owners</span>
         </div>
 
         {/* Centered Hero Headline */}
-        <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-semibold text-charcoal tracking-tight leading-[1.08] mb-6">
-          A better way <br />
-          <span className="italic font-normal text-forest-700">to call a place home.</span>
+        <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-semibold text-charcoal tracking-tight leading-[1.08] mb-4">
+          Affordable living <br />
+          <span className="italic font-normal text-forest-700">starts with the right people.</span>
         </h1>
 
-        {/* Supporting Copy */}
-        <p className="text-lg sm:text-xl text-charcoal-500 max-w-2xl mx-auto font-normal leading-relaxed mb-3">
-          Find rooms, flats and flatmates that fit your life and your budget.
+        {/* Supporting Copy & Brand Tagline */}
+        <p className="text-base sm:text-lg text-charcoal-600 max-w-xl mx-auto font-normal leading-relaxed mb-1.5">
+          Find your flatmate, your room, or a family stay.
         </p>
-        <p className="text-sm sm:text-base font-medium text-forest-800/90 tracking-wide mb-10">
-          Simple. Safe. Built for real people.
+        <p className="text-xs sm:text-sm font-medium text-forest-800 tracking-wide mb-6">
+          Find your place. Find your people.
         </p>
 
-        {/* Tab switcher: Find a Place vs Find a Flatmate */}
-        <div className="inline-flex p-1 bg-charcoal-100/70 rounded-2xl mb-4 border border-charcoal-200/40 shadow-inner">
+        {/* Priority Primary Actions: Flatmates vs Family Stays */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-2.5">
           <button
-            onClick={() => setActiveTab('places')}
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === 'places'
-                ? 'bg-white text-forest-800 shadow-sm'
-                : 'text-charcoal-500 hover:text-charcoal-800'
+            onClick={() => {
+              setActiveTab('flatmates');
+              handleSearchClick();
+            }}
+            className={`w-full sm:w-auto flex items-center justify-center space-x-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs ${
+              activeTab === 'flatmates'
+                ? 'bg-forest-600 text-white shadow-sm'
+                : 'bg-white hover:bg-forest-50/70 text-charcoal-800 border border-charcoal-200/70'
             }`}
           >
-            <Home className="w-4 h-4 text-forest-600" />
-            <span>Find a Place</span>
+            <Users className="w-4 h-4 text-sand-400" />
+            <span>Find Flatmates</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('flatmates')}
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === 'flatmates'
-                ? 'bg-white text-forest-800 shadow-sm'
-                : 'text-charcoal-500 hover:text-charcoal-800'
+            onClick={() => {
+              setActiveTab('family_stays');
+              handleSearchClick();
+            }}
+            className={`w-full sm:w-auto flex items-center justify-center space-x-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs ${
+              activeTab === 'family_stays'
+                ? 'bg-forest-600 text-white shadow-sm'
+                : 'bg-white hover:bg-forest-50/70 text-charcoal-800 border border-charcoal-200/70'
             }`}
           >
-            <Users className="w-4 h-4 text-forest-600" />
-            <span>Find a Flatmate</span>
+            <Home className="w-4 h-4 text-sand-400" />
+            <span>Explore Family Stays</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-sand-200/80 text-forest-900 px-1.5 py-0.5 rounded-full ml-1">
+              Meals
+            </span>
+          </button>
+        </div>
+
+        {/* Subtle Secondary Option for Entire Flats */}
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              setActiveTab('entire_flats');
+              handleSearchClick();
+            }}
+            className="text-xs text-charcoal-500 hover:text-forest-700 underline underline-offset-4 font-medium transition-colors"
+          >
+            Browse Entire Flats →
           </button>
         </div>
 
@@ -83,7 +107,7 @@ export const Hero: React.FC = () => {
             <div className="sm:col-span-4 text-left px-3 py-2 border-b sm:border-b-0 sm:border-r border-charcoal-100">
               <label htmlFor="hero-locality-select" className="block text-[11px] font-bold uppercase tracking-wider text-charcoal-400 mb-1 flex items-center space-x-1">
                 <MapPin className="w-3 h-3 text-forest-600" />
-                <span>Locality / Area</span>
+                <span>Locality / City</span>
               </label>
               <select
                 id="hero-locality-select"
@@ -91,7 +115,7 @@ export const Hero: React.FC = () => {
                 onChange={e => setFilters(prev => ({ ...prev, locality: e.target.value }))}
                 className="w-full bg-transparent text-sm font-semibold text-charcoal-800 focus:outline-none cursor-pointer truncate"
               >
-                {DELHI_NCR_LOCALITIES.map(loc => (
+                {POPULAR_LOCALITIES.map(loc => (
                   <option key={loc} value={loc}>
                     {loc}
                   </option>
@@ -99,22 +123,32 @@ export const Hero: React.FC = () => {
               </select>
             </div>
 
-            {/* Room Type */}
+            {/* Accommodation Category */}
             <div className="sm:col-span-3 text-left px-3 py-2 border-b sm:border-b-0 sm:border-r border-charcoal-100">
               <label htmlFor="hero-room-type-select" className="block text-[11px] font-bold uppercase tracking-wider text-charcoal-400 mb-1 flex items-center space-x-1">
                 <Home className="w-3 h-3 text-forest-600" />
-                <span>Accommodation</span>
+                <span>Living Category</span>
               </label>
               <select
                 id="hero-room-type-select"
                 value={filters.roomType}
-                onChange={e => setFilters(prev => ({ ...prev, roomType: e.target.value }))}
+                onChange={e => {
+                  const val = e.target.value;
+                  setFilters(prev => ({ ...prev, roomType: val }));
+                  if (val === 'family_stay') {
+                    setActiveTab('family_stays');
+                  } else if (val === 'entire_flat') {
+                    setActiveTab('entire_flats');
+                  } else {
+                    setActiveTab('flatmates');
+                  }
+                }}
                 className="w-full bg-transparent text-sm font-semibold text-charcoal-800 focus:outline-none cursor-pointer"
               >
-                <option value="all">Any Room Type</option>
-                <option value="private_room">Private Room</option>
-                <option value="shared_room">Shared Room</option>
-                <option value="entire_flat">Entire Flat / 1BHK</option>
+                <option value="all">All Living Options</option>
+                <option value="private_room">Flatmates & Shared Rooms</option>
+                <option value="family_stay">Family Stays (Resident Hosts)</option>
+                <option value="entire_flat">Entire Flats (1BHK/2BHK)</option>
               </select>
             </div>
 

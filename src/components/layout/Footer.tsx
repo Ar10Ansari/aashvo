@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { ArrowRight, MapPin, Mail } from 'lucide-react';
 
 export const Footer: React.FC = () => {
-  const { setIsListPropertyOpen, setIsAdminOpen } = useApp();
+  const { setIsListPropertyOpen, setIsAdminOpen, setIsHelpOpen } = useApp();
 
   return (
     <footer className="bg-charcoal-900 text-ivory-100 pt-16 pb-12 border-t border-charcoal-800">
@@ -12,13 +12,13 @@ export const Footer: React.FC = () => {
         <div className="bg-gradient-to-r from-forest-800 to-forest-900 rounded-3xl p-8 sm:p-12 mb-16 border border-forest-700/60 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <span className="text-xs font-bold uppercase tracking-wider text-sand-300 bg-forest-950/60 px-3 py-1 rounded-full border border-forest-600/50">
-              For Property Owners in Delhi NCR
+              For Property Owners Across India
             </span>
-            <h2 className="font-serif text-2xl sm:text-4xl font-bold text-white mt-3 mb-2">
-              Have a flat or vacant room in Gurugram or South Delhi?
+            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white mt-3 mb-2">
+              Have a flat or room to share?
             </h2>
-            <p className="text-forest-100/80 text-sm sm:text-base leading-relaxed">
-              List directly without paying brokerage. Receive verified, screened tenant inquiries from working professionals and students with full privacy control.
+            <p className="text-forest-100/80 text-sm leading-relaxed">
+              List directly with zero brokerage. Connect with students and working professionals with full address and privacy control.
             </p>
           </div>
 
@@ -39,12 +39,12 @@ export const Footer: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-sand-400 inline-block" />
             </div>
             <p className="text-xs text-charcoal-300 leading-relaxed max-w-sm">
-              Delhi NCR&apos;s transparent discovery platform for rooms, flats, and flatmates. Built on radical financial honesty, zero phantom listings, and verified co-living safety.
+              India&apos;s affordable-living discovery platform for students and working professionals. Connecting people with compatible flatmates, affordable rooms in family homes with meals, and shared living across Indian cities.
             </p>
             <div className="pt-2 text-xs text-charcoal-400 space-y-1">
               <p className="flex items-center space-x-2">
                 <MapPin className="w-3.5 h-3.5 text-sand-400" />
-                <span>Pilot Cluster: DLF Phases 1-5, Cyber City, Sector 43/54 & South Delhi</span>
+                <span>Pan-India Shared Living • Connecting flatmates and homes across Indian cities</span>
               </p>
               <p className="flex items-center space-x-2">
                 <Mail className="w-3.5 h-3.5 text-sand-400" />
@@ -55,27 +55,27 @@ export const Footer: React.FC = () => {
 
           <div>
             <h3 className="font-serif text-sm font-semibold text-white uppercase tracking-wider mb-3">
-              Explore
+              Explore Living
             </h3>
             <ul className="space-y-2 text-xs text-charcoal-300">
               <li>
                 <a href="#discovery-section" className="hover:text-sand-300 transition-colors">
-                  Rooms in Gurugram
+                  Find Flatmates & Roommates
                 </a>
               </li>
               <li>
                 <a href="#discovery-section" className="hover:text-sand-300 transition-colors">
-                  Flats in South Delhi
+                  Family Stays (with Meals)
                 </a>
               </li>
               <li>
                 <a href="#discovery-section" className="hover:text-sand-300 transition-colors">
-                  Find Verified Flatmates
+                  Entire Flats & Apartments
                 </a>
               </li>
               <li>
-                <a href="#discovery-section" className="hover:text-sand-300 transition-colors">
-                  Private Rooms under ₹20,000
+                <a href="#our-founders" className="hover:text-sand-300 transition-colors font-medium text-sand-300/90">
+                  Our Founders →
                 </a>
               </li>
             </ul>
@@ -83,21 +83,27 @@ export const Footer: React.FC = () => {
 
           <div>
             <h3 className="font-serif text-sm font-semibold text-white uppercase tracking-wider mb-3">
-              Trust & Safety
+              Trust, Safety & Help
             </h3>
             <ul className="space-y-2 text-xs text-charcoal-300">
               <li>
-                <span className="text-charcoal-300">Radical Cost Transparency</span>
+                <button onClick={() => setIsHelpOpen(true)} className="hover:text-sand-300 text-left transition-colors font-semibold text-sand-300">
+                  Help Centre & FAQs
+                </button>
               </li>
               <li>
-                <span className="text-charcoal-300">Freshness Verification Policy</span>
+                <button onClick={() => setIsHelpOpen(true)} className="hover:text-sand-300 text-left transition-colors">
+                  Contact Support Team
+                </button>
               </li>
               <li>
-                <span className="text-charcoal-300">Owner vs Broker Disclosure</span>
+                <button onClick={() => setIsHelpOpen(true)} className="hover:text-sand-300 text-left transition-colors">
+                  Zero Advance Payment Rules
+                </button>
               </li>
               <li>
                 <button onClick={() => setIsAdminOpen(true)} className="hover:text-sand-300 text-left transition-colors">
-                  Moderation Console
+                  Staff Moderation Console
                 </button>
               </li>
             </ul>
@@ -109,16 +115,20 @@ export const Footer: React.FC = () => {
             </h3>
             <ul className="space-y-2 text-xs text-charcoal-300">
               <li>
-                <span className="text-charcoal-300">Privacy Policy (Phone Masking)</span>
+                <span className="text-charcoal-300">Privacy Policy (Address Masking)</span>
               </li>
               <li>
                 <span className="text-charcoal-300">Terms of Service</span>
               </li>
               <li>
-                <span className="text-charcoal-300">Fair Housing Guidelines</span>
+                <button onClick={() => setIsHelpOpen(true)} className="hover:text-sand-300 text-left transition-colors">
+                  Track Your Support Ticket
+                </button>
               </li>
               <li>
-                <span className="text-charcoal-300">Report Inaccurate Listing</span>
+                <button onClick={() => setIsHelpOpen(true)} className="hover:text-sand-300 text-left transition-colors">
+                  Report Community Guideline Issue
+                </button>
               </li>
             </ul>
           </div>
@@ -126,8 +136,8 @@ export const Footer: React.FC = () => {
 
         {/* Bottom copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-charcoal-400 gap-4">
-          <p>© {new Date().getFullYear()} Aashvo Technologies Pvt. Ltd. All rights reserved.</p>
-          <p className="flex items-center space-x-1">
+          <p>© {new Date().getFullYear()} Aashvo. All rights reserved. Pan-India Affordable Living.</p>
+          <p className="flex items-center space-x-1 font-serif text-sand-300/90 italic">
             <span>Find your place. Find your people.</span>
           </p>
         </div>

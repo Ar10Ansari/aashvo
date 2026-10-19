@@ -85,6 +85,7 @@ dist/
 dist-ssr/
 
 # Editor directories and files
+.vscode/
 .idea/
 *.suo
 *.ntvs*

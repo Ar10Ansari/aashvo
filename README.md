@@ -1,6 +1,6 @@
 # Aashvo — Find your place. Find your people.
 
-> **Delhi NCR's website-first discovery platform for verified rooms, flats, and flatmates.**  
+> **Pan-India website-first discovery platform for verified rooms, flats, and flatmates.**  
 > Built with radical financial transparency, zero phantom listings, and verified co-living safety.
 
 ---

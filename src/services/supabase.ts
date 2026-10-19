@@ -23,6 +23,6 @@ export function getBackendStatus(): BackendStatus {
   return {
     isLive: isLiveBackendConfigured,
     provider: isLiveBackendConfigured ? 'Supabase PostgreSQL' : 'Local Deterministic Store',
-    region: 'Delhi NCR (Gurugram & South Delhi)',
+    region: 'Pan-India (ap-south-1 Mumbai / Local Store)',
   };
 }

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Flatmate } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { formatINR } from '../../utils/formatters';
-import { X, CheckCircle2, MapPin, Send } from 'lucide-react';
+import { X, CheckCircle2, MapPin, Send, ShieldAlert } from 'lucide-react';
 
 interface FlatmateDetailModalProps {
   flatmate: Flatmate;
@@ -10,7 +10,7 @@ interface FlatmateDetailModalProps {
 }
 
 export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatmate, onClose }) => {
-  const { currentUser, submitConnectRequest, showToast } = useApp();
+  const { currentUser, submitConnectRequest, setReportingTarget, showToast } = useApp();
 
   const [senderName, setSenderName] = useState(currentUser?.name || '');
   const [senderPhone, setSenderPhone] = useState(currentUser?.phone || '');
@@ -235,6 +235,25 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
                 </button>
               </form>
             )}
+
+            {/* Contextual Profile Report Trigger */}
+            <div className="pt-3 mt-4 border-t border-charcoal-100 flex items-center justify-between text-xs text-charcoal-400">
+              <span>Aashvo Community Verified Profile</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setReportingTarget({
+                    type: 'flatmate',
+                    id: flatmate.id,
+                    title: flatmate.name,
+                  });
+                }}
+                className="text-charcoal-500 hover:text-red-600 underline text-xs flex items-center space-x-1 transition-colors"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                <span>Report profile or inappropriate conduct</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

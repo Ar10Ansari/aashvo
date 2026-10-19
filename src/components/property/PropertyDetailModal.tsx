@@ -10,7 +10,7 @@ interface PropertyDetailModalProps {
 }
 
 export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ property, onClose }) => {
-  const { currentUser, submitConnectRequest, submitReport, showToast } = useApp();
+  const { currentUser, submitConnectRequest, setReportingTarget, showToast } = useApp();
   const [selectedImgIndex, setSelectedImgIndex] = useState(0);
 
   // Inquiry Form State
@@ -22,10 +22,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inquirySent, setInquirySent] = useState(false);
 
-  // Reporting State
-  const [showReportInput, setShowReportInput] = useState(false);
-  const [reportReason, setReportReason] = useState('Price or deposit discrepancy');
-  const [reportNotes, setReportNotes] = useState('');
+
 
   const freshness = getFreshnessInfo(property.lastVerifiedDate);
   const provider = getProviderBadge(property.providerType, property.brokerageFee);
@@ -56,11 +53,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
     }, 600);
   };
 
-  const handleReportSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    submitReport(property.id, property.title, reportReason, reportNotes);
-    setShowReportInput(false);
-  };
+
 
   return (
     <div
@@ -148,14 +141,19 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
             </div>
 
             <p className="text-xs text-charcoal-500 mb-6">
-              All costs are verified with the provider. Delhi NCR tenant rights mandate complete disclosure of utility and maintenance overheads.
+              All costs are verified with the provider. Tenant rights mandate complete upfront disclosure of recurring monthly rent, security deposits, and meal costs without hidden add-ons.
             </p>
 
+            {/* Recurring Monthly Costs vs One-Time Outlay */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="bg-white p-4 rounded-2xl border border-charcoal-100 shadow-sm">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-400">Monthly Rent</span>
                 <p className="font-serif text-2xl font-bold text-forest-800 mt-1">{formatINR(property.rent)}</p>
-                <span className="text-[11px] text-charcoal-500">Paid monthly by 5th</span>
+                <span className="text-[11px] text-charcoal-500">
+                  {property.category === 'family_stays' && property.mealsOffered === 'included'
+                    ? 'Includes home-cooked meals'
+                    : 'Recurring monthly'}
+                </span>
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-charcoal-100 shadow-sm">
@@ -167,7 +165,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
               <div className="bg-white p-4 rounded-2xl border border-charcoal-100 shadow-sm">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-400">Monthly Maintenance</span>
                 <p className="font-serif text-2xl font-bold text-charcoal-800 mt-1">{formatINR(property.maintenance)}</p>
-                <span className="text-[11px] text-charcoal-500">Covers lift, guard & society dues</span>
+                <span className="text-[11px] text-charcoal-500">Society / amenities dues</span>
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-charcoal-100 shadow-sm">
@@ -180,6 +178,37 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
                 </span>
               </div>
             </div>
+
+            {/* Family Stay Meal Disclosure Banner if applicable */}
+            {property.category === 'family_stays' && property.mealsOffered && (
+              <div className="mb-6 p-4 rounded-2xl bg-white border border-sand-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-forest-800">
+                    Resident Family Co-Living & Meal Policy
+                  </span>
+                  <p className="text-xs text-charcoal-700 mt-0.5">
+                    {property.mealsOffered === 'included' && (
+                      <span>
+                        <strong>Home-Cooked Meals: Included in Rent.</strong> Daily breakfast & dinner prepared by the host family are covered at ₹0 additional charge (no double counting).
+                      </span>
+                    )}
+                    {property.mealsOffered === 'optional_extra' && (
+                      <span>
+                        <strong>Home-Cooked Meals: Available for an optional fee.</strong> Fresh family dinner can be opted into for <strong>+{formatINR(property.optionalMealCost || 3000)}/mo</strong>.
+                      </span>
+                    )}
+                    {property.mealsOffered === 'none' && (
+                      <span>
+                        <strong>Self-Catering Setup.</strong> Host provides pantry appliances (microwave, induction, kettle). Regular meal plan is not provided.
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-sand-100 text-forest-900 border border-sand-300 flex-shrink-0">
+                  Family Host Verified
+                </span>
+              </div>
+            )}
 
             {/* Utility Sub-Meter & Estimated Move-In */}
             <div className="pt-4 border-t border-charcoal-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-charcoal-600">
@@ -331,58 +360,19 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
             </span>
 
             <button
-              onClick={() => setShowReportInput(!showReportInput)}
-              className="text-charcoal-500 hover:text-red-600 underline text-xs"
+              onClick={() => {
+                setReportingTarget({
+                  type: 'listing',
+                  id: property.id,
+                  title: property.title,
+                });
+              }}
+              className="text-charcoal-500 hover:text-red-600 underline text-xs flex items-center space-x-1 transition-colors"
             >
-              Report inaccuracy or suspicious broker
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              <span>Report inaccuracy, scam or misleading charges</span>
             </button>
           </div>
-
-          {/* Reporting Form Drawer */}
-          {showReportInput && (
-            <form onSubmit={handleReportSubmit} className="bg-red-50/70 border border-red-200 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center space-x-1.5 text-red-800 text-xs font-bold uppercase tracking-wider">
-                <ShieldAlert className="w-4 h-4 text-red-600" />
-                <span>Report This Listing for Editorial Review</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  value={reportReason}
-                  onChange={e => setReportReason(e.target.value)}
-                  className="text-xs px-3 py-2 rounded-lg border border-red-200 bg-white"
-                >
-                  <option value="Price or deposit discrepancy">Price or deposit discrepancy</option>
-                  <option value="Already rented out / inactive">Already rented out / inactive</option>
-                  <option value="Broker masquerading as owner">Broker masquerading as owner</option>
-                  <option value="Fake or misleading photographs">Fake or misleading photographs</option>
-                </select>
-
-                <input
-                  type="text"
-                  value={reportNotes}
-                  onChange={e => setReportNotes(e.target.value)}
-                  placeholder="Additional details for moderation team..."
-                  className="text-xs px-3 py-2 rounded-lg border border-red-200 bg-white"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReportInput(false)}
-                  className="text-xs px-3 py-1.5 text-charcoal-600 hover:bg-ivory-200 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="text-xs px-4 py-1.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700"
-                >
-                  Submit Report
-                </button>
-              </div>
-            </form>
-          )}
         </div>
       </div>
     </div>

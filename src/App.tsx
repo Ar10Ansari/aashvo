@@ -4,12 +4,15 @@ import { Navbar } from './components/layout/Navbar';
 import { Hero } from './components/hero/Hero';
 import { TrustFeatures } from './components/features/TrustFeatures';
 import { DiscoverySection } from './components/discovery/DiscoverySection';
+import { OurFounders } from './components/about/OurFounders';
 import { Footer } from './components/layout/Footer';
 import { PropertyDetailModal } from './components/property/PropertyDetailModal';
 import { FlatmateDetailModal } from './components/flatmate/FlatmateDetailModal';
 import { ListPropertyModal } from './components/listing/ListPropertyModal';
 import { AdminModerationModal } from './components/admin/AdminModerationModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { HelpCenterModal } from './components/help/HelpCenterModal';
+import { ReportModal } from './components/help/ReportModal';
 import { Toast } from './components/ui/Toast';
 
 const MainLayout: React.FC = () => {
@@ -24,6 +27,10 @@ const MainLayout: React.FC = () => {
     setIsAdminOpen,
     isAuthOpen,
     setIsAuthOpen,
+    isHelpOpen,
+    setIsHelpOpen,
+    reportingTarget,
+    setReportingTarget,
   } = useApp();
 
   return (
@@ -41,9 +48,12 @@ const MainLayout: React.FC = () => {
 
         {/* 6, 7. Property discovery section & Flatmate discovery section */}
         <DiscoverySection />
+
+        {/* 8. Our Founders Section */}
+        <OurFounders />
       </main>
 
-      {/* 8, 9. Property-provider CTA banner and complete useful footer */}
+      {/* 9. Property-provider CTA banner and complete useful footer */}
       <Footer />
 
       {/* Interactive Modals */}
@@ -76,6 +86,19 @@ const MainLayout: React.FC = () => {
       {isAuthOpen && (
         <AuthModal
           onClose={() => setIsAuthOpen(false)}
+        />
+      )}
+
+      {isHelpOpen && (
+        <HelpCenterModal
+          onClose={() => setIsHelpOpen(false)}
+        />
+      )}
+
+      {reportingTarget && (
+        <ReportModal
+          target={reportingTarget}
+          onClose={() => setReportingTarget(null)}
         />
       )}
 

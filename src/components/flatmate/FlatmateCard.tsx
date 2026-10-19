@@ -30,6 +30,11 @@ export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }
               src={flatmate.avatar}
               alt={flatmate.name}
               className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md group-hover:scale-105 transition-transform"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.onerror = null;
+                target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+              }}
             />
             {flatmate.verified && (
               <span

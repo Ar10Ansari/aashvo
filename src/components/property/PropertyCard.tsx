@@ -32,6 +32,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect }
           alt={property.title}
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.onerror = null;
+            target.src = 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=800&q=80';
+          }}
         />
 
         {/* Top Floating Badges */}
@@ -42,17 +47,39 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect }
             <span>{freshness.label}</span>
           </span>
 
-          {/* Provider Tag */}
-          <span className={`px-2.5 py-1 rounded-full text-[11px] border backdrop-blur-md shadow-sm ${provider.badgeStyle}`}>
-            {provider.label}
-          </span>
+          {/* Provider Tag or Family Stay Tag */}
+          {property.category === 'family_stays' ? (
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sand-200/90 text-forest-900 border border-sand-400 backdrop-blur-md shadow-sm">
+              Resident Family
+            </span>
+          ) : (
+            <span className={`px-2.5 py-1 rounded-full text-[11px] border backdrop-blur-md shadow-sm ${provider.badgeStyle}`}>
+              {provider.label}
+            </span>
+          )}
         </div>
 
-        {/* Bottom Floating Pill: Room Type */}
-        <div className="absolute bottom-3 left-3 pointer-events-none">
+        {/* Bottom Floating Pills: Room Type & Meal Status */}
+        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
           <span className="bg-charcoal-900/80 backdrop-blur-md text-ivory-50 text-xs font-medium px-3 py-1 rounded-full">
             {formatRoomType(property.roomType)}
           </span>
+
+          {property.category === 'family_stays' && property.mealsOffered && (
+            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full backdrop-blur-md shadow-sm border ${
+              property.mealsOffered === 'included'
+                ? 'bg-emerald-900/85 text-emerald-100 border-emerald-700/60'
+                : property.mealsOffered === 'optional_extra'
+                ? 'bg-amber-950/85 text-amber-200 border-amber-700/60'
+                : 'bg-charcoal-900/85 text-charcoal-200 border-charcoal-700/60'
+            }`}>
+              {property.mealsOffered === 'included'
+                ? 'Meals Included'
+                : property.mealsOffered === 'optional_extra'
+                ? `Meals (+${formatINR(property.optionalMealCost || 3000)})`
+                : 'Self-Catering'}
+            </span>
+          )}
         </div>
       </div>
 
