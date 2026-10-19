@@ -10,6 +10,7 @@
  */
 
 import { Property, PropertyFilterState, User, ListingCategory } from '../types';
+import { supabase, isLiveBackendConfigured, mapSupabasePropertyToApp, mapAppPropertyToSupabaseInsert } from './supabase';
 
 export interface ListingValidationResult {
   isValid: boolean;
@@ -219,4 +220,135 @@ export function calculateGeoDistanceKm(
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
+}
+
+// ====================================================================
+// Real Supabase Marketplace Methods
+// ====================================================================
+
+/**
+ * Fetches active property listings from Supabase PostgreSQL
+ */
+export async function fetchPropertiesFromSupabase(
+  filters?: Partial<PropertyFilterState>
+): Promise<{ success: boolean; properties?: Property[]; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: 'Live backend unconfigured' };
+  }
+
+  try {
+    let query = supabase
+      .from('properties')
+      .select('*')
+      .eq('status', 'active')
+      .order('last_verified_date', { ascending: false });
+
+    if (filters?.category && filters.category !== 'all') {
+      query = query.eq('category', filters.category);
+    }
+
+    if (filters?.roomType && filters.roomType !== 'all') {
+      query = query.eq('room_type', filters.roomType);
+    }
+
+    if (filters?.maxBudget) {
+      query = query.lte('rent_amount', filters.maxBudget);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const properties = (data || []).map(mapSupabasePropertyToApp);
+    return { success: true, properties };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch properties' };
+  }
+}
+
+/**
+ * Creates and persists a property listing in Supabase with strict validation
+ */
+export async function createPropertyInSupabase(
+  property: Partial<Property>,
+  hostUser: User
+): Promise<{ success: boolean; property?: Property; errors?: string[] }> {
+  const validation = validateListingSubmission(property, hostUser);
+  if (!validation.isValid) {
+    return { success: false, errors: validation.errors };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const dbRow = mapAppPropertyToSupabaseInsert(property, hostUser.id);
+      const { data, error } = await supabase
+        .from('properties')
+        .insert(dbRow)
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, errors: [error.message] };
+      }
+
+      if (data) {
+        return { success: true, property: mapSupabasePropertyToApp(data) };
+      }
+    } catch (err) {
+      return { success: false, errors: [err instanceof Error ? err.message : 'Database insertion error'] };
+    }
+  }
+
+  // Local deterministic fallback
+  const mockCreated: Property = {
+    ...property as Property,
+    id: `prop-${Date.now()}`,
+    status: 'pending_review',
+    lastVerifiedDate: new Date().toISOString(),
+    images: property.images || ['https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&q=80'],
+  };
+
+  return { success: true, property: mockCreated };
+}
+
+/**
+ * Submits an inquiry to Supabase
+ */
+export async function submitInquiryInSupabase(
+  inquiry: {
+    listingId: string;
+    senderId: string;
+    senderName: string;
+    senderEmail: string;
+    senderPhone?: string;
+    message: string;
+    moveInDate?: string;
+  }
+): Promise<{ success: boolean; inquiryId?: string; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('inquiries')
+        .insert({
+          listing_id: inquiry.listingId,
+          sender_id: inquiry.senderId,
+          sender_name: inquiry.senderName,
+          sender_email: inquiry.senderEmail,
+          sender_phone: inquiry.senderPhone || null,
+          message: inquiry.message,
+          move_in_date: inquiry.moveInDate || null,
+          created_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, inquiryId: data?.id };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Inquiry submission failed' };
+    }
+  }
+
+  return { success: true, inquiryId: `inq-${Date.now()}` };
 }

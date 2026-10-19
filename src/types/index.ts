@@ -250,6 +250,7 @@ export interface SafetyReport {
   reasonCode: ReportReasonCode;
   reasonLabel: string;
   details: string;
+  evidenceUrl?: string;
   priority: ReportPriority;
   status: ReportStatus;
   adminNotes?: string;

@@ -9,6 +9,7 @@ import {
   ReportPriority,
   User,
 } from '../types';
+import { supabase, isLiveBackendConfigured, mapSupabaseTicketToApp } from './supabase';
 
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   'image/jpeg',
@@ -349,4 +350,221 @@ export function dispatchSupportNotification(
     event,
     recipient: payload.recipientEmail,
   };
+}
+
+// ====================================================================
+// Real Supabase Support & Safety Methods
+// ====================================================================
+
+/**
+ * Creates and persists a support ticket in Supabase
+ */
+export async function createSupportTicketInSupabase(
+  ticketData: {
+    category: TicketCategory;
+    subject: string;
+    description: string;
+    userEmail: string;
+    userName: string;
+    userId?: string;
+    userPhone?: string;
+    referenceListingId?: string;
+    referenceUserId?: string;
+    priority?: TicketPriority;
+  },
+  initialMessage?: string
+): Promise<{ success: boolean; ticket?: SupportTicket; error?: string }> {
+  const ticketNumber = generateTicketNumber();
+  const priority = ticketData.priority || determineTicketPriority(ticketData.category, ticketData.subject, ticketData.description);
+  const now = new Date().toISOString();
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .insert({
+          ticket_number: ticketNumber,
+          category: ticketData.category,
+          subject: ticketData.subject.trim(),
+          description: ticketData.description.trim(),
+          user_email: ticketData.userEmail.trim().toLowerCase(),
+          user_name: ticketData.userName.trim(),
+          user_id: ticketData.userId || null,
+          user_phone: ticketData.userPhone || null,
+          reference_listing_id: ticketData.referenceListingId || null,
+          reference_user_id: ticketData.referenceUserId || null,
+          priority,
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data) {
+        const ticket = mapSupabaseTicketToApp(data);
+        ticket.messages = [];
+        ticket.auditEvents = [];
+
+        // Insert initial message if provided
+        if (initialMessage && initialMessage.trim().length > 0) {
+          const { data: msgData } = await supabase
+            .from('ticket_messages')
+            .insert({
+              ticket_id: data.id,
+              sender_id: ticketData.userId || null,
+              sender_name: ticketData.userName.trim(),
+              sender_role: 'user',
+              message: initialMessage.trim(),
+              is_internal: false,
+              created_at: now,
+            })
+            .select()
+            .single();
+
+          if (msgData) {
+            ticket.messages.push({
+              id: msgData.id,
+              ticketId: msgData.ticket_id,
+              senderId: msgData.sender_id,
+              senderName: msgData.sender_name,
+              senderRole: msgData.sender_role,
+              message: msgData.message,
+              isInternal: msgData.is_internal,
+              createdAt: msgData.created_at,
+            });
+          }
+        }
+
+        dispatchSupportNotification('ticket_created', {
+          ticketNumber: ticket.ticketNumber,
+          recipientEmail: ticket.userEmail,
+          subject: ticket.subject,
+        });
+
+        return { success: true, ticket };
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Database error' };
+    }
+  }
+
+  // Local deterministic fallback
+  const mockTicket: SupportTicket = {
+    id: `tkt-${Date.now()}`,
+    ticketNumber,
+    ...ticketData,
+    priority,
+    status: 'open',
+    attachments: [],
+    createdAt: now,
+    updatedAt: now,
+    messages: initialMessage ? [
+      {
+        id: `msg-${Date.now()}`,
+        ticketId: `tkt-${Date.now()}`,
+        senderId: ticketData.userId,
+        senderName: ticketData.userName,
+        senderRole: 'user',
+        message: initialMessage,
+        isInternal: false,
+        createdAt: now,
+      }
+    ] : [],
+    auditEvents: [],
+  };
+
+  return { success: true, ticket: mockTicket };
+}
+
+/**
+ * Fetches user support tickets from Supabase with messages
+ */
+export async function fetchSupportTicketsFromSupabase(
+  userEmail: string,
+  userId?: string
+): Promise<{ success: boolean; tickets?: SupportTicket[]; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: 'Live backend unconfigured' };
+  }
+
+  try {
+    let query = supabase
+      .from('support_tickets')
+      .select('*, ticket_messages(*)')
+      .order('created_at', { ascending: false });
+
+    if (userId) {
+      query = query.or(`user_id.eq.${userId},user_email.eq.${userEmail.toLowerCase().trim()}`);
+    } else {
+      query = query.eq('user_email', userEmail.toLowerCase().trim());
+    }
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const tickets: SupportTicket[] = (data || []).map(row => {
+      const ticket = mapSupabaseTicketToApp(row);
+      ticket.messages = Array.isArray(row.ticket_messages)
+        ? row.ticket_messages.map((m: any) => ({
+            id: m.id,
+            ticketId: m.ticket_id,
+            senderId: m.sender_id,
+            senderName: m.sender_name,
+            senderRole: m.sender_role,
+            message: m.message,
+            isInternal: Boolean(m.is_internal),
+            createdAt: m.created_at,
+          }))
+        : [];
+      return ticket;
+    });
+
+    return { success: true, tickets };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch tickets' };
+  }
+}
+
+/**
+ * Creates and persists a safety report in Supabase
+ */
+export async function createSafetyReportInSupabase(
+  reportData: Omit<SafetyReport, 'id' | 'createdAt' | 'status' | 'reasonLabel' | 'priority'>
+): Promise<{ success: boolean; reportId?: string; error?: string }> {
+  const { priority } = getReportPriorityAndLabel(reportData.reasonCode);
+  const now = new Date().toISOString();
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('safety_reports')
+        .insert({
+          reporter_id: reportData.reporterId || null,
+          reporter_email: reportData.reporterEmail || null,
+          target_type: reportData.targetType,
+          target_id: reportData.targetId,
+          target_title: reportData.targetTitle,
+          reason_code: reportData.reasonCode,
+          details: reportData.details.trim(),
+          evidence_url: reportData.evidenceUrl || null,
+          priority,
+          status: 'pending',
+          created_at: now,
+        })
+        .select('id')
+        .single();
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, reportId: data?.id };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Report creation failed' };
+    }
+  }
+
+  return { success: true, reportId: `srep-${Date.now()}` };
 }

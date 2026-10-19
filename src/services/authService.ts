@@ -11,6 +11,7 @@
  */
 
 import { User, ActionType, ProgressiveProfileRequirement, ProviderType, MealsOffered } from '../types';
+import { supabase, isLiveBackendConfigured, mapSupabaseProfileToUser } from './supabase';
 
 export interface OAuthInitiateOptions {
   provider: 'google';
@@ -523,4 +524,224 @@ export function sanitizeUserUpdateRequest(
   }
 
   return { sanitized, rejectedFields };
+}
+
+// ====================================================================
+// Real Supabase Backend Integration Methods
+// ====================================================================
+
+/**
+ * Real Supabase Email Sign-Up
+ */
+export async function signUpWithSupabase(params: EmailSignUpParams): Promise<{ success: boolean; user?: User; error?: string; emailConfirmationRequired?: boolean }> {
+  const { email, password, fullName } = params;
+
+  if (!isValidEmail(email)) {
+    return { success: false, error: 'Invalid email address.' };
+  }
+
+  const passwordCheck = isValidPassword(password);
+  if (!passwordCheck.valid) {
+    return { success: false, error: passwordCheck.reason };
+  }
+
+  if (!fullName || fullName.trim().length < 2) {
+    return { success: false, error: 'Full name must be at least 2 characters.' };
+  }
+
+  // If live backend is configured, use real Supabase Auth
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            role: 'renter', // Default non-privileged role
+          },
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        const mappedUser: User = {
+          id: data.user.id,
+          name: fullName.trim(),
+          email: data.user.email || email.trim().toLowerCase(),
+          role: 'renter',
+          emailVerified: Boolean(data.user.email_confirmed_at),
+          phoneVerified: false,
+          authProvider: 'email',
+          accountStatus: data.user.email_confirmed_at ? 'active' : 'unverified',
+        };
+
+        return {
+          success: true,
+          user: mappedUser,
+          emailConfirmationRequired: !data.session,
+        };
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Registration failed' };
+    }
+  }
+
+  // Fallback to deterministic local directory
+  return registerWithEmail(params);
+}
+
+/**
+ * Real Supabase Email Sign-In
+ */
+export async function signInWithSupabase(email: string, password: string): Promise<{ success: boolean; user?: User; session?: any; error?: string }> {
+  if (!isValidEmail(email)) {
+    return { success: false, error: 'Invalid email address.' };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        // Fetch profile from database
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        const user: User = profile
+          ? mapSupabaseProfileToUser(profile)
+          : {
+              id: data.user.id,
+              name: data.user.user_metadata?.full_name || email.split('@')[0],
+              email: data.user.email || email,
+              role: (data.user.user_metadata?.role as any) || 'renter',
+              emailVerified: Boolean(data.user.email_confirmed_at),
+              phoneVerified: false,
+              authProvider: 'email',
+            };
+
+        return { success: true, user, session: data.session };
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Sign-in failed' };
+    }
+  }
+
+  // Deterministic local directory fallback
+  const normalizedEmail = email.toLowerCase().trim();
+  const record = registeredUserDirectory.get(normalizedEmail);
+  if (!record || record.passwordHash !== `hash_${password}`) {
+    return { success: false, error: 'Invalid email or password.' };
+  }
+
+  return { success: true, user: record.user };
+}
+
+/**
+ * Real Supabase Sign-Out
+ */
+export async function signOutWithSupabase(): Promise<{ success: boolean; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) return { success: false, error: error.message };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Sign-out failed' };
+    }
+  }
+  return { success: true };
+}
+
+/**
+ * Real Supabase Password Reset Request
+ */
+export async function resetPasswordWithSupabase(email: string): Promise<{ success: boolean; message: string }> {
+  if (!isValidEmail(email)) {
+    return { success: false, message: 'Invalid email address.' };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    } catch {
+      // Neutral message to prevent user enumeration
+    }
+  }
+
+  return {
+    success: true,
+    message: 'If an account exists with this email, password reset instructions have been sent.',
+  };
+}
+
+/**
+ * Real Supabase Google OAuth Initiation
+ */
+export async function initiateGoogleOAuthWithSupabase(redirectTo?: string): Promise<{ success: boolean; url?: string; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo || window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) return { success: false, error: error.message };
+      if (data?.url) return { success: true, url: data.url };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Google OAuth failed' };
+    }
+  }
+
+  return {
+    success: true,
+    url: `${window.location.origin}?oauth=simulated&provider=google`,
+  };
+}
+
+/**
+ * Real Supabase Profile Sync
+ */
+export async function syncUserProfileWithSupabase(userId: string, updates: Partial<User>): Promise<{ success: boolean; user?: User; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: updates.name,
+          phone_number: updates.phone,
+          avatar_url: updates.avatar,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) return { success: false, error: error.message };
+      if (data) return { success: true, user: mapSupabaseProfileToUser(data) };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Profile update failed' };
+    }
+  }
+  return { success: true };
 }

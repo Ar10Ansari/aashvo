@@ -21,7 +21,15 @@ import {
   getReportPriorityAndLabel,
   isDuplicateReport,
   dispatchSupportNotification,
+  createSupportTicketInSupabase,
+  createSafetyReportInSupabase,
 } from '../services/supportService';
+import { supabase, isLiveBackendConfigured } from '../services/supabase';
+import {
+  fetchPropertiesFromSupabase,
+  createPropertyInSupabase,
+  submitInquiryInSupabase,
+} from '../services/marketplaceService';
 
 interface AppContextType {
   properties: Property[];
@@ -376,6 +384,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ticketNumber,
       priority,
       status: 'open',
+      attachments: [],
       createdAt: now,
       updatedAt: now,
       messages: initialThreadMessage,
@@ -393,6 +402,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setSupportTickets(prev => [newTicket, ...prev]);
+
+    if (isLiveBackendConfigured && supabase) {
+      createSupportTicketInSupabase(ticketData, initialMessage).catch(err => {
+        console.warn('[Supabase Support Sync Notice]', err);
+      });
+    }
 
     dispatchSupportNotification('ticket_created', {
       ticketNumber,
@@ -593,6 +608,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSafetyReports(prev => [newReport, ...prev]);
 
+    if (isLiveBackendConfigured && supabase) {
+      createSafetyReportInSupabase(reportData).catch(err => {
+        console.warn('[Supabase Safety Report Sync Notice]', err);
+      });
+    }
+
     // Also maintain legacy reports for backward compatibility
     if (reportData.targetType === 'listing') {
       submitReport(reportData.targetId, reportData.targetTitle, label, reportData.details);
@@ -657,6 +678,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
+  // Hydrate live database properties if Supabase is connected
+  useEffect(() => {
+    if (isLiveBackendConfigured && supabase) {
+      fetchPropertiesFromSupabase().then(res => {
+        if (res.success && res.properties && res.properties.length > 0) {
+          setProperties(res.properties);
+        }
+      }).catch(err => {
+        console.warn('[Supabase Property Hydration Notice]', err);
+      });
+    }
+  }, []);
+
+  // Listen for Supabase session and auth changes
+  useEffect(() => {
+    if (!isLiveBackendConfigured || !supabase) return;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        setCurrentUser({
+          id: session.user.id,
+          name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Aashvo Member',
+          email: session.user.email || '',
+          role: (meta.role as any) || 'renter',
+          phone: session.user.phone || meta.phone,
+          avatar: meta.avatar_url,
+          emailVerified: Boolean(session.user.email_confirmed_at),
+          phoneVerified: Boolean(session.user.phone_confirmed_at),
+          authProvider: session.user.app_metadata?.provider === 'google' ? 'google' : 'email',
+        });
+      }
+    }).catch(err => {
+      console.warn('[Supabase Session Check Notice]', err);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        setCurrentUser({
+          id: session.user.id,
+          name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Aashvo Member',
+          email: session.user.email || '',
+          role: (meta.role as any) || 'renter',
+          phone: session.user.phone || meta.phone,
+          avatar: meta.avatar_url,
+          emailVerified: Boolean(session.user.email_confirmed_at),
+          phoneVerified: Boolean(session.user.phone_confirmed_at),
+          authProvider: session.user.app_metadata?.provider === 'google' ? 'google' : 'email',
+        });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => {
@@ -706,6 +785,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    if (isLiveBackendConfigured && supabase) {
+      supabase.auth.signOut().catch(() => {});
+    }
     setCurrentUser(null);
     showToast('Signed out successfully');
   };
@@ -747,6 +829,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setProperties(prev => [newProp, ...prev]);
     setIsListPropertyOpen(false);
+
+    if (isLiveBackendConfigured && supabase && currentUser) {
+      createPropertyInSupabase(newPropData, currentUser).then(res => {
+        if (res.success && res.property) {
+          // Update local property with persisted database ID and fields
+          setProperties(prev => prev.map(p => (p.id === newProp.id ? res.property! : p)));
+        }
+      }).catch(err => {
+        console.warn('[Supabase Listing Creation Notice]', err);
+      });
+    }
+
     showToast('🎉 Property listed successfully with transparent pricing!');
   };
 
@@ -757,6 +851,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setConnectRequests(prev => [newReq, ...prev]);
+
+    if (isLiveBackendConfigured && supabase) {
+      submitInquiryInSupabase({
+        listingId: reqData.targetId,
+        senderId: currentUser?.id || 'guest',
+        senderName: reqData.senderName,
+        senderEmail: reqData.senderEmail,
+        senderPhone: reqData.senderPhone,
+        message: reqData.message,
+        moveInDate: reqData.moveInDate,
+      }).catch(err => {
+        console.warn('[Supabase Inquiry Submission Notice]', err);
+      });
+    }
+
     showToast('Direct inquiry sent! The provider has been notified via WhatsApp & Email.');
   };
 
