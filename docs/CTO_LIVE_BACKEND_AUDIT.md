@@ -4,7 +4,8 @@
 **Auditor / Role:** Antigravity CTO, Senior Full-Stack Engineer & Application Security Lead
 **Repository:** `D:\Projects\AASHVO`
 **Remote:** `https://github.com/Ar10Ansari/aashvo.git` (Branch: `master`)
-**Base Commit:** `631f0a8`
+**Base Inspected Commit:** `631f0a8`
+**Released Commit:** `ea9b982` (Pushed to `origin/master`)
 **Production Site Tested:** `https://aashvo.vercel.app`
 **Target Database:** Supabase (`aashvo-dev`, Mumbai `ap-south-1`)
 
