@@ -1,9 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { ArrowRight, MapPin, Mail } from 'lucide-react';
+import { isTrustedAdminSession } from '../../services/authorizationService';
 
 export const Footer: React.FC = () => {
-  const { setIsListPropertyOpen, setIsAdminOpen, setIsHelpOpen } = useApp();
+  const { setIsListPropertyOpen, setIsAdminOpen, setIsHelpOpen, currentUser } = useApp();
 
   return (
     <footer className="bg-charcoal-900 text-ivory-100 pt-16 pb-12 border-t border-charcoal-800">
@@ -101,11 +102,13 @@ export const Footer: React.FC = () => {
                   Zero Advance Payment Rules
                 </button>
               </li>
-              <li>
-                <button onClick={() => setIsAdminOpen(true)} className="hover:text-sand-300 text-left transition-colors">
-                  Staff Moderation Console
-                </button>
-              </li>
+              {isTrustedAdminSession(currentUser) && (
+                <li>
+                  <button onClick={() => setIsAdminOpen(true)} className="hover:text-sand-300 text-left transition-colors">
+                    Staff Moderation Console
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 

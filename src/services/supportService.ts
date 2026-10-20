@@ -10,6 +10,7 @@ import {
   User,
 } from '../types';
 import { supabase, isLiveBackendConfigured, mapSupabaseTicketToApp } from './supabase';
+import { isTrustedAdminSession } from './authorizationService';
 
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   'image/jpeg',
@@ -297,6 +298,7 @@ export function isDuplicateReport(
   });
 }
 
+
 /**
  * Client Privacy Sanitizer
  * Strips internal staff notes and audit logs when serving ticket data to non-admin users.
@@ -305,9 +307,9 @@ export function sanitizeTicketForClient(
   ticket: SupportTicket,
   requestingUser: User | null
 ): SupportTicket {
-  const isAdmin = requestingUser?.role === 'admin';
+  const isTrustedAdmin = isTrustedAdminSession(requestingUser);
 
-  if (isAdmin) {
+  if (isTrustedAdmin) {
     return ticket;
   }
 

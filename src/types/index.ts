@@ -98,6 +98,7 @@ export interface User {
   authProvider?: 'google' | 'email';
   accountStatus?: 'active' | 'unverified' | 'suspended';
   bio?: string;
+  isDemo?: boolean;
 }
 
 export interface ListingReport {

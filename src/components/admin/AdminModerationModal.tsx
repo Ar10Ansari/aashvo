@@ -4,6 +4,7 @@ import { formatINR, getFreshnessInfo } from '../../utils/formatters';
 import { FAQ_CATEGORY_LABELS } from '../../data/faqData';
 import { TicketStatus, TicketPriority } from '../../types';
 import { canTransitionTicketStatus } from '../../services/supportService';
+import { isTrustedAdminSession } from '../../services/authorizationService';
 import {
   X,
   ShieldCheck,
@@ -47,7 +48,8 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
   const [transitionNotes, setTransitionNotes] = useState('');
 
   // Unauthorized Access Check: Database / RLS authorization guard
-  const isAdmin = currentUser?.role === 'admin';
+  // Demo personas and unauthenticated localStorage modifications are rejected unconditionally
+  const isAdmin = isTrustedAdminSession(currentUser);
 
   // Filtered Tickets
   const filteredTickets = useMemo(() => {
@@ -70,19 +72,35 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
   }, [selectedTicketId, supportTickets, filteredTickets]);
 
   const handleApprove = (id: string) => {
+    if (!isAdmin) {
+      showToast('Action blocked: Verified staff credentials required.');
+      return;
+    }
     updatePropertyStatus(id, 'active');
   };
 
   const handlePause = (id: string) => {
+    if (!isAdmin) {
+      showToast('Action blocked: Verified staff credentials required.');
+      return;
+    }
     updatePropertyStatus(id, 'pending_review');
   };
 
   const handleMarkRented = (id: string) => {
+    if (!isAdmin) {
+      showToast('Action blocked: Verified staff credentials required.');
+      return;
+    }
     updatePropertyStatus(id, 'rented');
   };
 
   const handleSendAdminReply = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      showToast('Action blocked: Verified staff credentials required.');
+      return;
+    }
     if (!activeTicket || !adminReplyText.trim()) return;
 
     addTicketMessage(
@@ -96,6 +114,10 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
   };
 
   const handleStatusChange = (newStatus: TicketStatus) => {
+    if (!isAdmin) {
+      showToast('Action blocked: Verified staff credentials required.');
+      return;
+    }
     if (!activeTicket) return;
     if (!canTransitionTicketStatus(activeTicket.status, newStatus)) {
       showToast(`Cannot transition ticket from ${activeTicket.status.toUpperCase()} to ${newStatus.toUpperCase()}`);

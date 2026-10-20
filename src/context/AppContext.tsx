@@ -30,6 +30,10 @@ import {
   createPropertyInSupabase,
   submitInquiryInSupabase,
 } from '../services/marketplaceService';
+import {
+  sanitizeStoredUser,
+  canPerformAdminAction,
+} from '../services/authorizationService';
 
 interface AppContextType {
   properties: Property[];
@@ -55,7 +59,7 @@ interface AppContextType {
   setReportingTarget: (target: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null) => void;
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
-  loginAs: (role: 'renter' | 'owner' | 'broker' | 'admin', name?: string) => void;
+  loginAs: (role: 'renter' | 'owner' | 'broker', name?: string) => void;
   logout: () => void;
   reports: ListingReport[];
   submitReport: (listingId: string, listingTitle: string, reason: string, notes: string) => void;
@@ -481,6 +485,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const ticket = supportTickets.find(t => t.id === ticketId);
     if (!ticket) return false;
 
+    // Staff transitions require trusted admin session
+    if (newStatus === 'in_review' || newStatus === 'resolved' || newStatus === 'closed') {
+      const authCheck = canPerformAdminAction(currentUser, 'update_ticket_status');
+      if (!authCheck.allowed) {
+        showToast(`Unauthorized: ${authCheck.reason}`);
+        return false;
+      }
+    }
+
     if (!canTransitionTicketStatus(ticket.status, newStatus)) {
       showToast(`Invalid status transition from ${ticket.status.toUpperCase()} to ${newStatus.toUpperCase()}`);
       return false;
@@ -528,6 +541,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateTicketPriority = (ticketId: string, newPriority: TicketPriority) => {
+    const authCheck = canPerformAdminAction(currentUser, 'update_ticket_priority');
+    if (!authCheck.allowed) {
+      showToast(`Unauthorized: ${authCheck.reason}`);
+      return;
+    }
+
     const now = new Date().toISOString();
     setSupportTickets(prev =>
       prev.map(t => {
@@ -554,6 +573,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const assignTicket = (ticketId: string, adminId: string, adminName: string) => {
+    const authCheck = canPerformAdminAction(currentUser, 'assign_ticket');
+    if (!authCheck.allowed) {
+      showToast(`Unauthorized: ${authCheck.reason}`);
+      return;
+    }
+
     const now = new Date().toISOString();
     setSupportTickets(prev =>
       prev.map(t => {
@@ -628,6 +653,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resolveSafetyReport = (reportId: string, action: 'resolved' | 'dismissed', adminNotes?: string) => {
+    const authCheck = canPerformAdminAction(currentUser, 'resolve_safety_report');
+    if (!authCheck.allowed) {
+      showToast(`Unauthorized: ${authCheck.reason}`);
+      return;
+    }
+
     const now = new Date().toISOString();
     setSafetyReports(prev =>
       prev.map(r =>
@@ -637,7 +668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               status: action,
               adminNotes: adminNotes || r.adminNotes,
               reviewedAt: now,
-              reviewedBy: currentUser?.name || 'Admin',
+              reviewedBy: currentUser?.name || 'Staff',
             }
           : r
       )
@@ -645,15 +676,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Report marked as ${action.toUpperCase()}`);
   };
 
-  // Authenticated user simulation (starts logged in as Rohan, persists across session changes)
+  // Authenticated user state (sanitized on load to prevent localStorage privilege escalation)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('aashvo_current_user');
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const sanitized = sanitizeStoredUser(parsed);
+        if (sanitized) return sanitized;
+      } catch {
+        // Fallback to default
+      }
+    }
+    return {
       id: 'usr-101',
       name: 'Rohan Varma',
       email: 'rohan.v@delhitech.in',
       role: 'renter',
       phone: '+91 98112 34567',
+      isDemo: true,
+      emailVerified: false,
+      phoneVerified: false,
+      identityVerified: false,
     };
   });
 
@@ -748,40 +792,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Filters reset to default');
   };
 
-  const loginAs = (role: 'renter' | 'owner' | 'broker' | 'admin', name?: string) => {
-    const userMap: Record<string, User> = {
+  const loginAs = (role: 'renter' | 'owner' | 'broker', name?: string) => {
+    const userMap: Record<'renter' | 'owner' | 'broker', User> = {
       renter: {
-        id: 'usr-101',
+        id: 'usr-demo-101',
         name: name || 'Rohan Varma',
         email: 'rohan.v@delhitech.in',
         role: 'renter',
         phone: '+91 98112 34567',
+        isDemo: true,
+        emailVerified: false,
+        phoneVerified: false,
+        identityVerified: false,
       },
       owner: {
-        id: 'usr-202',
+        id: 'usr-demo-202',
         name: name || 'Anil Mehra (DLF Owner)',
         email: 'anil.mehra@delhihomes.org',
         role: 'owner',
         phone: '+91 98101 22334',
+        isDemo: true,
+        emailVerified: false,
+        phoneVerified: false,
+        identityVerified: false,
       },
       broker: {
-        id: 'usr-303',
+        id: 'usr-demo-303',
         name: name || 'Rajesh Kumar (Verified Manager)',
         email: 'rajesh@urbanstay.in',
         role: 'broker',
         phone: '+91 97112 99887',
-      },
-      admin: {
-        id: 'usr-001',
-        name: 'Aashvo Trust & Safety Team',
-        email: 'moderation@aashvo.com',
-        role: 'admin',
+        isDemo: true,
+        emailVerified: false,
+        phoneVerified: false,
+        identityVerified: false,
       },
     };
 
     setCurrentUser(userMap[role]);
     setIsAuthOpen(false);
-    showToast(`Signed in as ${userMap[role].name} (${role.toUpperCase()})`);
+    showToast(`Viewing interface as ${userMap[role].name} (Non-privileged Demo Preview)`);
   };
 
   const logout = () => {
@@ -807,6 +857,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resolveReport = (reportId: string) => {
+    const authCheck = canPerformAdminAction(currentUser, 'resolve_report');
+    if (!authCheck.allowed) {
+      showToast(`Unauthorized: ${authCheck.reason}`);
+      return;
+    }
+
     setReports(prev =>
       prev.map(r => (r.id === reportId ? { ...r, status: 'resolved' as const } : r))
     );
@@ -814,6 +870,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePropertyStatus = (id: string, status: ListingStatus) => {
+    const authCheck = canPerformAdminAction(currentUser, 'update_property_status');
+    if (!authCheck.allowed) {
+      showToast(`Unauthorized: ${authCheck.reason}`);
+      return;
+    }
+
     setProperties(prev =>
       prev.map(p => (p.id === id ? { ...p, status, lastVerifiedDate: new Date().toISOString() } : p))
     );
@@ -824,13 +886,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newProp: Property = {
       ...newPropData,
       id: `prop-${Date.now()}`,
-      status: 'active', // Automatically active or pending
+      status: 'pending_review', // Default to pending review for safety
       lastVerifiedDate: new Date().toISOString(),
     };
     setProperties(prev => [newProp, ...prev]);
     setIsListPropertyOpen(false);
 
-    if (isLiveBackendConfigured && supabase && currentUser) {
+    if (isLiveBackendConfigured && supabase && currentUser && !currentUser.isDemo) {
       createPropertyInSupabase(newPropData, currentUser).then(res => {
         if (res.success && res.property) {
           // Update local property with persisted database ID and fields
@@ -839,9 +901,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch(err => {
         console.warn('[Supabase Listing Creation Notice]', err);
       });
+      showToast('🎉 Property submitted to moderation queue for verification!');
+    } else {
+      showToast('Listing saved to local draft preview (Cloud synchronization offline in prototype mode).');
     }
-
-    showToast('🎉 Property listed successfully with transparent pricing!');
   };
 
   const submitConnectRequest = (reqData: Omit<ConnectRequest, 'id' | 'createdAt'>) => {
@@ -864,9 +927,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch(err => {
         console.warn('[Supabase Inquiry Submission Notice]', err);
       });
+      showToast('Direct inquiry dispatched to host!');
+    } else {
+      showToast('Direct inquiry recorded in local preview (Live notifications activate upon Supabase configuration).');
     }
-
-    showToast('Direct inquiry sent! The provider has been notified via WhatsApp & Email.');
   };
 
   return (

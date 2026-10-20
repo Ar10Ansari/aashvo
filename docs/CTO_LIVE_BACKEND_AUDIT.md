@@ -58,6 +58,8 @@ Testing was conducted using browser subagent automation on `https://aashvo.verce
 | **BUG-005** | Support ticket attachments type mismatch | `SupportTicket` required `attachments: []` but initial mock tickets omitted it | Added `attachments: []` initialization across all services and mock tickets | `npm run typecheck`, `helpAndSupportSystem.test.ts` |
 | **BUG-006** | Safety report `evidenceUrl` schema gap | SQL migration added `evidence_url` column but TypeScript interface lacked it | Added `evidenceUrl?: string` to `SafetyReport` interface | `npm run typecheck` |
 | **BUG-007** | Incomplete `.env.example` guidance | `.env.example` lacked instructions for OAuth, email/SMS providers, and security rules | Expanded `.env.example` with comprehensive documentation and warnings against service-role keys | `.env.example` inspection |
+| **BUG-008** | Demo persona Admin privilege escalation | `AuthModal.tsx` offered an "Admin" demo persona that allowed self-selection into staff role and unlocked moderation console | Completely removed Admin demo persona, marked remaining personas with `isDemo: true`, demoted untrusted localStorage claims in `sanitizeStoredUser`, and guarded all administrative actions with `canPerformAdminAction` | `demoAuthSecurity.test.ts` |
+| **BUG-009** | Public exposure of Moderation Console in Navbar and Footer | "Moderation Console" button was publicly visible in header and footer to unauthenticated visitors | Wrapped console button with `isTrustedAdminSession(currentUser)` to restrict display strictly to verified staff sessions | `Navbar.tsx`, `Footer.tsx`, `demoAuthSecurity.test.ts` |
 
 ---
 
@@ -111,7 +113,7 @@ The repository contains 4 sequential SQL migration files in `supabase/migrations
 ### Remote Execution Status
 > [!IMPORTANT]
 > **REMOTE MIGRATION STATUS: UNAPPLIED (BY SAFETY INSTRUCTION)**
-> In compliance with strict production release rules, no migrations were pushed to the remote hosted Supabase project (`aashvo-dev`). The migrations have been statically analyzed and validated via 126 automated Vitest integration tests.
+> In compliance with strict production release rules, no migrations were pushed to the remote hosted Supabase project (`aashvo-dev`). The migrations have been statically analyzed and validated via 136 automated Vitest integration tests.
 
 ---
 
@@ -121,7 +123,7 @@ All quality gates were executed locally with zero errors:
 
 | Check | Command Line | Result | Metrics |
 | :--- | :--- | :--- | :--- |
-| **Unit & Integration Tests** | `npm test -- --run` | **PASS** | 126 passing tests across 12 test suites (0 failures) |
+| **Unit & Integration Tests** | `npm test -- --run` | **PASS** | 136 passing tests across 13 test suites (0 failures) |
 | **TypeScript Typecheck** | `npm run typecheck` | **PASS** | 0 compile errors (`tsc --noEmit`) |
 | **Production Build** | `npm run build` | **PASS** | 390.02 kB JS, 48.18 kB CSS built in 3.96s |
 | **Git Diff Quality** | `git diff --check` | **PASS** | 0 whitespace or merge marker issues |

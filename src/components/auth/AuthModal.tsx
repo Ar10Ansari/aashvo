@@ -5,7 +5,6 @@ import {
   User as UserIcon,
   Home,
   Briefcase,
-  ShieldCheck,
   Mail,
   Lock,
   ArrowRight,
@@ -247,6 +246,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
         {/* Content */}
         <div className="p-6">
+          {/* Backend Engine Health Indicator */}
+          <div className="mb-4 px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between border bg-ivory-100/80 border-charcoal-200/50">
+            <span className="text-charcoal-600">Database Engine:</span>
+            <span className={`inline-flex items-center gap-1.5 font-semibold ${isLiveBackendConfigured ? 'text-forest-800' : 'text-amber-800'}`}>
+              <span className={`w-2 h-2 rounded-full ${isLiveBackendConfigured ? 'bg-forest-600 animate-pulse' : 'bg-amber-500'}`} />
+              {isLiveBackendConfigured ? 'Live Supabase Cloud' : 'Local Prototype Mode'}
+            </span>
+          </div>
+
           {/* Alerts */}
           {errorMessage && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start space-x-2">
@@ -510,9 +518,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           {/* 4. DEMO PERSONAS SWITCHER */}
           {mode === 'personas' && (
             <div className="space-y-2.5">
-              <p className="text-xs text-charcoal-500 mb-2">
-                For team review and test workflows, choose a verified persona to test role-specific interfaces:
-              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-relaxed mb-3">
+                <span className="font-bold">🛡️ Non-Privileged Preview Mode: </span>
+                Demo personas provide read-only interface previews for testing UI flows. They do not grant verified identity, property ownership, or administrative permissions.
+              </div>
 
               <button
                 onClick={() => {
@@ -528,10 +537,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                   <div className="flex items-center justify-between">
                     <span className="font-serif text-sm font-bold text-charcoal-900">Rohan Varma</span>
                     <span className="text-[10px] bg-ivory-200 text-charcoal-700 px-2 py-0.5 rounded-full font-semibold">
-                      RENTER
+                      DEMO RENTER
                     </span>
                   </div>
-                  <p className="text-xs text-charcoal-500">Software Engineer looking for a place in Gurugram</p>
+                  <p className="text-xs text-charcoal-500">Prospective student / software engineer looking in Gurugram</p>
                 </div>
               </button>
 
@@ -549,10 +558,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                   <div className="flex items-center justify-between">
                     <span className="font-serif text-sm font-bold text-charcoal-900">Anil Mehra</span>
                     <span className="text-[10px] bg-forest-100 text-forest-800 px-2 py-0.5 rounded-full font-semibold">
-                      DIRECT OWNER
+                      DEMO OWNER
                     </span>
                   </div>
-                  <p className="text-xs text-charcoal-500">Property Owner in DLF Phase 4 (₹0 Brokerage)</p>
+                  <p className="text-xs text-charcoal-500">Property Owner in DLF Phase 4 (₹0 Brokerage view)</p>
                 </div>
               </button>
 
@@ -570,31 +579,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                   <div className="flex items-center justify-between">
                     <span className="font-serif text-sm font-bold text-charcoal-900">Rajesh Kumar</span>
                     <span className="text-[10px] bg-charcoal-100 text-charcoal-800 px-2 py-0.5 rounded-full font-semibold">
-                      PROPERTY MANAGER
+                      DEMO MANAGER
                     </span>
                   </div>
-                  <p className="text-xs text-charcoal-500">Verified Manager in Saket with declared fees</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  loginAs('admin', 'Aashvo Trust & Safety Team');
-                  onClose();
-                }}
-                className="w-full p-3.5 rounded-2xl border border-charcoal-200 hover:border-forest-600 bg-white hover:bg-forest-50/50 text-left transition-all flex items-center space-x-3 group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-forest-100 text-forest-700 flex items-center justify-center group-hover:bg-forest-600 group-hover:text-white transition-colors">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-sm font-bold text-charcoal-900">Safety & Moderation Team</span>
-                    <span className="text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-semibold">
-                      ADMIN
-                    </span>
-                  </div>
-                  <p className="text-xs text-charcoal-500">Full access to moderation queue and reports</p>
+                  <p className="text-xs text-charcoal-500">Property Manager in Saket with declared fee breakdown</p>
                 </div>
               </button>
             </div>

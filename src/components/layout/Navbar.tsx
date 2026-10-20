@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Menu, X, PlusCircle, ShieldCheck, UserCheck, LogOut, ChevronDown, HelpCircle } from 'lucide-react';
+import { isTrustedAdminSession } from '../../services/authorizationService';
 
 export const Navbar: React.FC = () => {
   const {
@@ -119,15 +120,17 @@ export const Navbar: React.FC = () => {
 
           {/* Right Action Controls */}
           <div className="hidden md:flex items-center space-x-4">
-            {/* Admin Badge */}
-            <button
-              onClick={() => setIsAdminOpen(true)}
-              className="text-xs text-charcoal-400 hover:text-forest-700 px-2.5 py-1.5 rounded-md hover:bg-ivory-300/70 border border-charcoal-200/50 flex items-center space-x-1.5 transition-all"
-              title="Open Safety & Moderation Queue"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
-              <span>Moderation Console</span>
-            </button>
+            {/* Admin Badge: Restricted to verified staff identity */}
+            {isTrustedAdminSession(currentUser) && (
+              <button
+                onClick={() => setIsAdminOpen(true)}
+                className="text-xs text-charcoal-400 hover:text-forest-700 px-2.5 py-1.5 rounded-md hover:bg-ivory-300/70 border border-charcoal-200/50 flex items-center space-x-1.5 transition-all"
+                title="Open Safety & Moderation Queue"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
+                <span>Moderation Console</span>
+              </button>
+            )}
 
             {currentUser ? (
               <div className="relative">
@@ -318,16 +321,18 @@ export const Navbar: React.FC = () => {
               <span>Help Centre & Safety FAQs</span>
             </button>
 
-            <button
-              onClick={() => {
-                setIsAdminOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center space-x-2"
-            >
-              <ShieldCheck className="w-4 h-4 text-forest-600" />
-              <span>Moderation Console</span>
-            </button>
+            {isTrustedAdminSession(currentUser) && (
+              <button
+                onClick={() => {
+                  setIsAdminOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center space-x-2"
+              >
+                <ShieldCheck className="w-4 h-4 text-forest-600" />
+                <span>Moderation Console</span>
+              </button>
+            )}
 
             <button
               onClick={() => {
