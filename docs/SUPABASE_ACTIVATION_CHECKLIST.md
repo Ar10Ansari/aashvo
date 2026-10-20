@@ -147,3 +147,32 @@ After executing migrations and populating Vercel environment variables, verify e
    - Ensure Supabase Daily Automated Backups are enabled for `aashvo-dev` before applying any manual migrations.
 3. **Frontend Fallback Resilience:**
    - The Aashvo React client is architected to automatically fall back to local deterministic state if the Supabase API returns 500 or is temporarily unreachable, preventing user-facing blank screens.
+
+---
+
+## 10. GIT AUTHOR IDENTITY & VERCEL DEPLOYMENT TROUBLESHOOTING
+
+### 1. Root Cause: Vercel Deployment Author Verification Block
+- **Issue:** Vercel deployment failed or was blocked on commit `b796117` due to author email mismatch.
+- **Root Cause:** Git commits were authored under `engineering@aashvo.com`. Vercel's GitHub integration verifies that the commit author email matches a verified email address on the GitHub account (`Ar10Ansari`) connected to the Vercel project. Because `engineering@aashvo.com` was not registered or verified on the connected GitHub account, Vercel blocked the deployment trigger.
+
+### 2. Strict Prohibition on History Rewriting
+- **No Force-Push / No Amend:** In production and shared branches (`master`), never run `git commit --amend`, `git rebase`, or `git push --force`. Rewriting commit history disrupts remote tracking, invalidates deployment references, and risks losing verified work.
+
+### 3. Safe Resolution & Verification Procedure
+1. **Configure Local Git Author Identity:**
+   Ensure the local git configuration uses the email address associated with the verified GitHub account:
+   ```bash
+   git config user.email "abdul.professional10@gmail.com"
+   ```
+2. **Verify Email on GitHub:**
+   - Log into GitHub as `Ar10Ansari`.
+   - Navigate to **GitHub Settings -> Emails** (`https://github.com/settings/emails`).
+   - Confirm that `abdul.professional10@gmail.com` is listed with a green **Verified** badge.
+   - If not present or unverified, click **Add email address**, enter `abdul.professional10@gmail.com`, and click the verification link sent to your inbox.
+   - *(Alternative)*: Add `engineering@aashvo.com` as an additional verified email under the same GitHub account.
+3. **Forward-Only Release Deployment & Verification:**
+   - All subsequent changes must be committed as new forward-only commits under the verified author identity (`abdul.professional10@gmail.com`).
+   - Push cleanly to `origin master`.
+   - **Explicit Deployment Confirmation Required:** Verifying the author email satisfies Git author validation, but does **not** guarantee automatic deployment. Project settings, webhooks, or approval workflows may require manual confirmation or triggers.
+   - Always inspect the **Vercel Dashboard -> Deployments** tab to verify that the commit triggered a build, passed all checks, and is marked `Ready`. Never assume or claim a commit is deployed until Vercel explicitly confirms deployment success.
