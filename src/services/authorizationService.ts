@@ -12,9 +12,16 @@ import { User } from '../types';
 import { isLiveBackendConfigured, supabase } from './supabase';
 
 /**
- * Validates whether the given user has a genuinely verified administrative session.
- * In production, this requires an authentic Supabase session with verified staff claims.
- * Demo personas and unauthenticated localStorage modifications are rejected unconditionally.
+ * Frontend Structural Defense Filter:
+ * Checks whether the in-memory user object satisfies client-side admin constraints.
+ *
+ * CRITICAL ARCHITECTURAL PRINCIPLE:
+ * This client-side check (including RFC 4122 UUID syntax validation) is strictly a
+ * defensive presentation filter. It is NOT authentication and does NOT grant backend authority.
+ * Real administrative authority is established exclusively on the PostgreSQL server,
+ * where Supabase Auth validates the cryptographic JWT signature and database functions
+ * (public.is_admin() and public.is_support_admin()) verify the user's role in public.profiles.
+ * Any client-side forgery is rejected by PostgreSQL Row Level Security (RLS).
  */
 export function isTrustedAdminSession(user: User | null): boolean {
   if (!user) return false;
@@ -26,13 +33,19 @@ export function isTrustedAdminSession(user: User | null): boolean {
   if (user.role !== 'admin') return false;
 
   // Rule 3: Client-side mock IDs or unauthenticated IDs cannot be trusted admins
-  if (!user.id || user.id.startsWith('usr-demo') || user.id === 'usr-101' || user.id === 'usr-hacker') {
+  if (
+    !user.id ||
+    user.id.startsWith('usr-demo') ||
+    user.id === 'usr-101' ||
+    user.id === 'usr-hacker' ||
+    user.id === 'usr-attacker'
+  ) {
     return false;
   }
 
-  // Rule 4: In live production with Supabase configured, mock admin IDs are rejected
+  // Rule 4: In live production with Supabase configured, only authentic UUID admin sessions are permitted
   if (isLiveBackendConfigured && supabase) {
-    if (user.id === 'usr-001') {
+    if (user.id.startsWith('usr-') || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
       return false;
     }
   }

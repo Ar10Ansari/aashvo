@@ -13,6 +13,7 @@ import { AdminModerationModal } from './components/admin/AdminModerationModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { HelpCenterModal } from './components/help/HelpCenterModal';
 import { ReportModal } from './components/help/ReportModal';
+import { RentalTrustModal } from './components/rental/RentalTrustModal';
 import { Toast } from './components/ui/Toast';
 
 const MainLayout: React.FC = () => {
@@ -29,8 +30,11 @@ const MainLayout: React.FC = () => {
     setIsAuthOpen,
     isHelpOpen,
     setIsHelpOpen,
+    isRentalTrustOpen,
+    setIsRentalTrustOpen,
     reportingTarget,
     setReportingTarget,
+    currentUser,
   } = useApp();
 
   return (
@@ -99,6 +103,14 @@ const MainLayout: React.FC = () => {
         <ReportModal
           target={reportingTarget}
           onClose={() => setReportingTarget(null)}
+        />
+      )}
+
+      {isRentalTrustOpen && (
+        <RentalTrustModal
+          isOpen={isRentalTrustOpen}
+          onClose={() => setIsRentalTrustOpen(false)}
+          currentUser={currentUser}
         />
       )}
 

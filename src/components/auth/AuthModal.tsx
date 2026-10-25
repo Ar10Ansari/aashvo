@@ -16,6 +16,8 @@ import {
   signInWithSupabase,
   signUpWithSupabase,
   resetPasswordWithSupabase,
+  updatePasswordWithSupabase,
+  resendVerificationEmailWithSupabase,
   initiateGoogleOAuthWithSupabase,
   isValidPassword,
   isValidEmail,
@@ -26,19 +28,29 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
-type AuthMode = 'signin' | 'signup' | 'forgot' | 'personas';
+type AuthMode = 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
-  const { loginAs, setCurrentUser } = useApp();
-  const [mode, setMode] = useState<AuthMode>('signin');
+  const { loginAs, setCurrentUser, authModalMode, setAuthModalMode } = useApp();
+  const [mode, setMode] = useState<AuthMode>(authModalMode || 'signin');
 
   // Form states
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Sync with global authModalMode
+  React.useEffect(() => {
+    if (authModalMode) {
+      setMode(authModalMode);
+    }
+  }, [authModalMode]);
 
   // Password validation hint
   const passwordValidation = password.length > 0 ? isValidPassword(password) : null;
@@ -59,6 +71,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     }
 
     setLoading(true);
+    setEmailUnconfirmed(false);
     try {
       const res = await signInWithSupabase(email, password);
       if (res.success && res.user) {
@@ -66,11 +79,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         onClose();
       } else {
         setErrorMessage(res.error || 'Invalid email or password.');
+        if (res.emailUnconfirmed) {
+          setEmailUnconfirmed(true);
+        }
       }
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Sign-in failed.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!isValidEmail(email)) {
+      setErrorMessage('Please enter your email address to resend verification.');
+      return;
+    }
+    setResendingEmail(true);
+    try {
+      const res = await resendVerificationEmailWithSupabase(email);
+      if (res.success) {
+        setSuccessMessage(res.message || 'Verification email resent! Please check your inbox.');
+      } else {
+        setErrorMessage(res.error || 'Failed to resend verification email.');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to resend verification email.');
+    } finally {
+      setResendingEmail(false);
     }
   };
 
@@ -133,9 +169,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setLoading(true);
     try {
       const res = await resetPasswordWithSupabase(email);
-      setSuccessMessage(res.message);
+      if (res.success) {
+        setSuccessMessage(res.message);
+      } else {
+        setErrorMessage(res.error || res.message);
+      }
     } catch {
       setSuccessMessage('If an account exists with this email, password reset instructions have been sent.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const check = isValidPassword(password);
+    if (!check.valid) {
+      setErrorMessage(check.reason || 'Password does not meet requirements.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await updatePasswordWithSupabase(password);
+      if (res.success) {
+        setSuccessMessage('Your password has been updated successfully! Please sign in with your new password.');
+        setTimeout(() => {
+          setMode('signin');
+          setAuthModalMode('signin');
+          setPassword('');
+          setConfirmPassword('');
+          setSuccessMessage(null);
+        }, 2500);
+      } else {
+        setErrorMessage(res.error || 'Password update failed.');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Password update failed.');
     } finally {
       setLoading(false);
     }
@@ -187,6 +265,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               {mode === 'signin' && 'Welcome Back'}
               {mode === 'signup' && 'Create Your Account'}
               {mode === 'forgot' && 'Reset Password'}
+              {mode === 'recovery' && 'Set New Password'}
               {mode === 'personas' && 'Switch Demo Persona'}
             </h2>
           </div>
@@ -257,9 +336,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
           {/* Alerts */}
           {errorMessage && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start space-x-2">
-              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
+            <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex flex-col space-y-2">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMessage}</span>
+              </div>
+              {emailUnconfirmed && (
+                <div className="pl-6 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendingEmail}
+                    className="text-xs bg-forest-800 hover:bg-forest-900 text-white font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all disabled:opacity-50"
+                  >
+                    {resendingEmail ? 'Sending Link...' : 'Resend Verification Link'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -499,6 +592,76 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 className="w-full py-3 bg-forest-800 hover:bg-forest-900 text-white rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
               >
                 <span>{loading ? 'Sending...' : 'Send Reset Link'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="w-full text-center text-xs text-forest-700 hover:underline pt-2 font-medium"
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          )}
+
+          {/* 4. RECOVERY (SET NEW PASSWORD) */}
+          {mode === 'recovery' && (
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <p className="text-xs text-charcoal-500 leading-relaxed">
+                Create a strong new password for your Aashvo account.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-700 mb-1">New Password</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    required
+                    disabled={loading}
+                    className="w-full pl-10 pr-4 py-2.5 bg-ivory-50 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
+                  />
+                </div>
+                {passwordValidation && !passwordValidation.valid && (
+                  <p className="text-[11px] text-amber-700 mt-1">{passwordValidation.reason}</p>
+                )}
+                {passwordValidation && passwordValidation.valid && (
+                  <p className="text-[11px] text-emerald-700 mt-1 flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Strong password</span>
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-700 mb-1">Confirm New Password</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    required
+                    disabled={loading}
+                    className="w-full pl-10 pr-4 py-2.5 bg-ivory-50 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-forest-800 hover:bg-forest-900 text-white rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                <span>{loading ? 'Updating Password...' : 'Save New Password'}</span>
               </button>
 
               <button

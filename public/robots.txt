@@ -1,0 +1,16 @@
+# Aashvo Production Robots Configuration
+# Canonical domain: https://aashvo.vercel.app/
+
+User-agent: *
+Allow: /
+
+# Disallow private user portals, auth callbacks, and administrative consoles
+Disallow: /admin
+Disallow: /auth/
+Disallow: /api/
+Disallow: /tickets/
+Disallow: /disputes/
+Disallow: /reports/
+
+# Sitemap Location
+Sitemap: https://aashvo.vercel.app/sitemap.xml

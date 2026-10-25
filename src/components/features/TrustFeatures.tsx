@@ -1,7 +1,10 @@
 import React from 'react';
-import { Clock, Receipt, UserCheck, CheckCircle2 } from 'lucide-react';
+import { Clock, Receipt, UserCheck, CheckCircle2, ShieldCheck, ChevronRight } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 export const TrustFeatures: React.FC = () => {
+  const { setIsRentalTrustOpen } = useApp();
+
   return (
     <section className="py-12 sm:py-16 bg-white border-y border-charcoal-200/30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -68,6 +71,29 @@ export const TrustFeatures: React.FC = () => {
               <span>Zero pushy telecallers or broker spam</span>
             </div>
           </div>
+        </div>
+
+        {/* Feature 4: Full-width Rental Trust & Protection Portal Banner */}
+        <div className="mt-8 p-6 sm:p-8 rounded-2xl bg-forest-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-md border border-forest-800">
+          <div className="max-w-xl">
+            <div className="flex items-center space-x-2 text-sand-300 text-xs font-semibold uppercase tracking-wider mb-2">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Rental Trust Infrastructure</span>
+            </div>
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-white mb-2">
+              Auditable Tenancy Agreements & Move-in Condition Logs
+            </h3>
+            <p className="text-xs sm:text-sm text-forest-100 leading-relaxed font-sans">
+              Protect your deposit and stay. Access mutual digital leases, rent payment ledgers, room-by-room condition logs, verified two-sided reviews, and community dispute resolution.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsRentalTrustOpen(true)}
+            className="inline-flex items-center gap-2 px-6 py-3.5 bg-sand-300 hover:bg-sand-400 text-forest-950 rounded-xl font-semibold text-sm shadow-sm transition-all shrink-0"
+          >
+            <span>Open Rental Trust Portal</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </section>

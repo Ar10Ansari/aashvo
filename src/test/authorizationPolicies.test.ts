@@ -99,6 +99,34 @@ function canViewReport(_report: DBListingReport, actor: DBUser | null): boolean 
   return actor.role === 'admin';
 }
 
+// 6. RLS Policy: Flatmate base-table access (strictly Owner or Admin)
+interface DBFlatmateProfile {
+  id: string;
+  user_id: string;
+  occupation: string;
+  verified: boolean;
+}
+
+function canSelectFlatmateBaseTable(profile: DBFlatmateProfile, actor: DBUser | null): boolean {
+  if (!actor) return false;
+  return actor.id === profile.user_id || actor.role === 'admin';
+}
+
+function canMutateFlatmateVerification(
+  oldVerified: boolean,
+  newVerified: boolean,
+  actor: DBUser
+): { allowed: boolean; error?: string } {
+  if (actor.role === 'admin') return { allowed: true };
+  if (newVerified && !oldVerified) {
+    return {
+      allowed: false,
+      error: 'Privilege escalation rejected: flatmate profile verification status requires official administrative review.',
+    };
+  }
+  return { allowed: true };
+}
+
 describe('Database Authorization & RLS Enforcement Matrix', () => {
   const renter: DBUser = { id: 'usr-renter', role: 'renter' };
   const owner: DBUser = { id: 'usr-owner', role: 'owner' };
@@ -207,6 +235,42 @@ describe('Database Authorization & RLS Enforcement Matrix', () => {
       expect(canViewReport(sampleReport, renter)).toBe(false);
       expect(canViewReport(sampleReport, owner)).toBe(false);
       expect(canViewReport(sampleReport, admin)).toBe(true);
+    });
+  });
+
+  describe('6. Flatmate Profiles Least-Privilege & Boundary Enforcement', () => {
+    const flatmateProfile: DBFlatmateProfile = {
+      id: 'flt-101',
+      user_id: renter.id,
+      occupation: 'Software Engineer',
+      verified: false,
+    };
+
+    it('denies anonymous visitors direct read access to the base flatmate_profiles table', () => {
+      expect(canSelectFlatmateBaseTable(flatmateProfile, null)).toBe(false);
+    });
+
+    it('blocks other authenticated renters from reading flatmate base rows directly', () => {
+      expect(canSelectFlatmateBaseTable(flatmateProfile, otherUser)).toBe(false);
+    });
+
+    it('allows the account owner to select their own flatmate profile base row', () => {
+      expect(canSelectFlatmateBaseTable(flatmateProfile, renter)).toBe(true);
+    });
+
+    it('allows platform administrators to view all flatmate base rows', () => {
+      expect(canSelectFlatmateBaseTable(flatmateProfile, admin)).toBe(true);
+    });
+
+    it('prevents profile owners from forging verified = true status', () => {
+      const res = canMutateFlatmateVerification(false, true, renter);
+      expect(res.allowed).toBe(false);
+      expect(res.error).toContain('Privilege escalation rejected');
+    });
+
+    it('allows administrators to officially grant verified = true status', () => {
+      const res = canMutateFlatmateVerification(false, true, admin);
+      expect(res.allowed).toBe(true);
     });
   });
 });

@@ -456,6 +456,10 @@ export async function createSupportTicketInSupabase(
   }
 
   // Local deterministic fallback
+  if (import.meta.env.PROD) {
+    return { success: false, error: 'Live database is unconfigured. Cannot submit support ticket in production.' };
+  }
+
   const mockTicket: SupportTicket = {
     id: `tkt-${Date.now()}`,
     ticketNumber,
@@ -566,6 +570,10 @@ export async function createSafetyReportInSupabase(
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Report creation failed' };
     }
+  }
+
+  if (import.meta.env.PROD) {
+    return { success: false, error: 'Live database is unconfigured. Cannot submit safety report in production.' };
   }
 
   return { success: true, reportId: `srep-${Date.now()}` };

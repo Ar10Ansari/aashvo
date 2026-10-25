@@ -530,14 +530,101 @@ export function sanitizeUserUpdateRequest(
 // Real Supabase Backend Integration Methods
 // ====================================================================
 
+export const BACKEND_NOT_CONFIGURED_ERROR =
+  'Supabase authentication backend is not configured in this environment (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY). Please configure environment variables or use Demo Personas.';
+
+/**
+ * Ensures a matching profile row exists in public.profiles for an authenticated user.
+ * Safe, idempotent and compliant with PostgreSQL RLS.
+ */
+export async function ensureUserProfileExists(
+  authUser: {
+    id: string;
+    email?: string;
+    user_metadata?: Record<string, any>;
+    email_confirmed_at?: string;
+    phone_confirmed_at?: string;
+  },
+  extraMetadata?: { fullName?: string }
+): Promise<User> {
+  const email = (authUser.email || '').trim().toLowerCase();
+  const fullName =
+    extraMetadata?.fullName ||
+    authUser.user_metadata?.full_name ||
+    authUser.user_metadata?.name ||
+    email.split('@')[0] ||
+    'Aashvo Member';
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      // 1. Check if profile already exists
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (profile) {
+        return mapSupabaseProfileToUser(profile);
+      }
+
+      // 2. Insert profile if missing (self-healing client provisioning)
+      const insertPayload = {
+        id: authUser.id,
+        email,
+        full_name: fullName,
+        role: 'renter', // Strictly renter for non-admin signups
+        avatar_url: authUser.user_metadata?.avatar_url || null,
+        phone_number: authUser.user_metadata?.phone_number || null,
+        email_verified: false, // Verification flags must be validated by server-side triggers, never asserted by client
+        phone_verified: false,
+        id_verified: false,
+      };
+
+      const { data: inserted } = await supabase
+        .from('profiles')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (inserted) {
+        return mapSupabaseProfileToUser(inserted);
+      }
+    } catch (err) {
+      console.warn('[Profile Provisioning Notice]', err);
+    }
+  }
+
+  // Safe fallback in-memory User representation
+  return {
+    id: authUser.id,
+    name: fullName,
+    email,
+    role: 'renter',
+    emailVerified: Boolean(authUser.email_confirmed_at),
+    phoneVerified: Boolean(authUser.phone_confirmed_at),
+    identityVerified: false,
+    authProvider: authUser.user_metadata?.avatar_url ? 'google' : 'email',
+    accountStatus: authUser.email_confirmed_at ? 'active' : 'unverified',
+  };
+}
+
 /**
  * Real Supabase Email Sign-Up
+ * Does NOT silently fall back to mock data when unconfigured.
  */
-export async function signUpWithSupabase(params: EmailSignUpParams): Promise<{ success: boolean; user?: User; error?: string; emailConfirmationRequired?: boolean }> {
+export async function signUpWithSupabase(
+  params: EmailSignUpParams
+): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+  emailConfirmationRequired?: boolean;
+}> {
   const { email, password, fullName } = params;
 
   if (!isValidEmail(email)) {
-    return { success: false, error: 'Invalid email address.' };
+    return { success: false, error: 'Please enter a valid email address.' };
   }
 
   const passwordCheck = isValidPassword(password);
@@ -549,105 +636,172 @@ export async function signUpWithSupabase(params: EmailSignUpParams): Promise<{ s
     return { success: false, error: 'Full name must be at least 2 characters.' };
   }
 
-  // If live backend is configured, use real Supabase Auth
-  if (isLiveBackendConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            role: 'renter', // Default non-privileged role
-          },
-        },
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      if (data.user) {
-        const mappedUser: User = {
-          id: data.user.id,
-          name: fullName.trim(),
-          email: data.user.email || email.trim().toLowerCase(),
-          role: 'renter',
-          emailVerified: Boolean(data.user.email_confirmed_at),
-          phoneVerified: false,
-          authProvider: 'email',
-          accountStatus: data.user.email_confirmed_at ? 'active' : 'unverified',
-        };
-
-        return {
-          success: true,
-          user: mappedUser,
-          emailConfirmationRequired: !data.session,
-        };
-      }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Registration failed' };
-    }
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
   }
 
-  // Fallback to deterministic local directory
-  return registerWithEmail(params);
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          full_name: fullName.trim(),
+          role: 'renter',
+        },
+      },
+    });
+
+    if (error) {
+      // Map common Supabase Auth errors to helpful messages
+      if (error.message.toLowerCase().includes('already registered')) {
+        return {
+          success: false,
+          error: 'An account with this email address already exists. Please sign in or reset your password.',
+        };
+      }
+      return { success: false, error: error.message };
+    }
+
+    if (data.user) {
+      const isConfirmed = Boolean(data.user.email_confirmed_at);
+      const emailConfirmationRequired = !data.session || !isConfirmed;
+
+      const user = await ensureUserProfileExists(data.user, { fullName: fullName.trim() });
+      return {
+        success: true,
+        user,
+        emailConfirmationRequired,
+      };
+    }
+
+    return { success: false, error: 'Registration failed to return user data.' };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Registration failed' };
+  }
 }
 
 /**
  * Real Supabase Email Sign-In
+ * Does NOT silently fall back to mock data when unconfigured.
  */
-export async function signInWithSupabase(email: string, password: string): Promise<{ success: boolean; user?: User; session?: any; error?: string }> {
+export async function signInWithSupabase(
+  email: string,
+  password: string
+): Promise<{
+  success: boolean;
+  user?: User;
+  session?: any;
+  error?: string;
+  emailUnconfirmed?: boolean;
+  rateLimited?: boolean;
+}> {
   if (!isValidEmail(email)) {
-    return { success: false, error: 'Invalid email address.' };
+    return { success: false, error: 'Please enter a valid email address.' };
   }
 
-  if (isLiveBackendConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+  if (!password) {
+    return { success: false, error: 'Please enter your password.' };
+  }
 
-      if (error) {
-        return { success: false, error: error.message };
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (error) {
+      const errLower = error.message.toLowerCase();
+
+      if (errLower.includes('email not confirmed') || errLower.includes('not confirmed')) {
+        return {
+          success: false,
+          error: 'Your email address has not been confirmed yet. Please verify via the link sent to your inbox, or request a new verification email.',
+          emailUnconfirmed: true,
+        };
       }
 
-      if (data.user) {
-        // Fetch profile from database
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        const user: User = profile
-          ? mapSupabaseProfileToUser(profile)
-          : {
-              id: data.user.id,
-              name: data.user.user_metadata?.full_name || email.split('@')[0],
-              email: data.user.email || email,
-              role: (data.user.user_metadata?.role as any) || 'renter',
-              emailVerified: Boolean(data.user.email_confirmed_at),
-              phoneVerified: false,
-              authProvider: 'email',
-            };
-
-        return { success: true, user, session: data.session };
+      if (errLower.includes('invalid login credentials') || errLower.includes('invalid credentials')) {
+        return {
+          success: false,
+          error: 'Invalid email or password. Please check your credentials and try again.',
+        };
       }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Sign-in failed' };
+
+      if (errLower.includes('too many requests') || errLower.includes('rate limit')) {
+        return {
+          success: false,
+          error: 'Too many unsuccessful attempts. For your security, please wait a few moments before trying again.',
+          rateLimited: true,
+        };
+      }
+
+      return { success: false, error: error.message };
     }
+
+    if (data.user) {
+      const user = await ensureUserProfileExists(data.user);
+      return { success: true, user, session: data.session };
+    }
+
+    return { success: false, error: 'Sign in succeeded but returned no session.' };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Sign-in failed' };
+  }
+}
+
+/**
+ * Resends email verification confirmation link for a user
+ */
+export async function resendVerificationEmailWithSupabase(
+  email: string
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  if (!isValidEmail(email)) {
+    return { success: false, error: 'Please enter a valid email address.' };
   }
 
-  // Deterministic local directory fallback
-  const normalizedEmail = email.toLowerCase().trim();
-  const record = registeredUserDirectory.get(normalizedEmail);
-  if (!record || record.passwordHash !== `hash_${password}`) {
-    return { success: false, error: 'Invalid email or password.' };
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
   }
 
-  return { success: true, user: record.user };
+  try {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return {
+      success: true,
+      message: 'Verification link resent! Please check your email inbox.',
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to resend verification email.',
+    };
+  }
 }
 
 /**
@@ -667,20 +821,29 @@ export async function signOutWithSupabase(): Promise<{ success: boolean; error?:
 
 /**
  * Real Supabase Password Reset Request
+ * Always returns neutral message to protect against email enumeration.
  */
-export async function resetPasswordWithSupabase(email: string): Promise<{ success: boolean; message: string }> {
+export async function resetPasswordWithSupabase(
+  email: string
+): Promise<{ success: boolean; message: string; error?: string }> {
   if (!isValidEmail(email)) {
-    return { success: false, message: 'Invalid email address.' };
+    return { success: false, message: 'Please enter a valid email address.' };
   }
 
-  if (isLiveBackendConfigured && supabase) {
-    try {
-      await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-    } catch {
-      // Neutral message to prevent user enumeration
-    }
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      message: BACKEND_NOT_CONFIGURED_ERROR,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
+  }
+
+  try {
+    await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/#type=recovery`,
+    });
+  } catch {
+    // Neutral message to prevent user enumeration
   }
 
   return {
@@ -690,58 +853,129 @@ export async function resetPasswordWithSupabase(email: string): Promise<{ succes
 }
 
 /**
- * Real Supabase Google OAuth Initiation
+ * Real Supabase Password Update (Recovery Callback)
  */
-export async function initiateGoogleOAuthWithSupabase(redirectTo?: string): Promise<{ success: boolean; url?: string; error?: string }> {
-  if (isLiveBackendConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectTo || window.location.origin,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (error) return { success: false, error: error.message };
-      if (data?.url) return { success: true, url: data.url };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Google OAuth failed' };
-    }
+export async function updatePasswordWithSupabase(
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const check = isValidPassword(newPassword);
+  if (!check.valid) {
+    return { success: false, error: check.reason || 'Password does not meet requirements.' };
   }
 
-  return {
-    success: true,
-    url: `${window.location.origin}?oauth=simulated&provider=google`,
-  };
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
+  }
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update password',
+    };
+  }
+}
+
+/**
+ * Real Supabase Google OAuth Initiation
+ */
+export async function initiateGoogleOAuthWithSupabase(
+  redirectTo?: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return {
+      success: false,
+      error: BACKEND_NOT_CONFIGURED_ERROR,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectTo || window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) return { success: false, error: error.message };
+    if (data?.url) return { success: true, url: data.url };
+
+    return { success: false, error: 'Google OAuth failed to generate an authorization URL.' };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Google OAuth failed' };
+  }
+}
+
+/**
+ * Parses OAuth error responses from the window location query or hash
+ */
+export function parseOAuthErrorFromUrl(
+  searchOrHash: string
+): { hasError: boolean; error?: string; errorDescription?: string } {
+  try {
+    const cleanStr = searchOrHash.replace(/^[#?]/, '');
+    const params = new URLSearchParams(cleanStr);
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
+
+    if (error) {
+      let friendlyMessage = errorDescription || error;
+      if (error === 'access_denied') {
+        friendlyMessage = 'Google sign-in was cancelled or access was denied.';
+      }
+      return { hasError: true, error, errorDescription: friendlyMessage };
+    }
+  } catch {
+    // Ignore URL parse error
+  }
+  return { hasError: false };
 }
 
 /**
  * Real Supabase Profile Sync
  */
-export async function syncUserProfileWithSupabase(userId: string, updates: Partial<User>): Promise<{ success: boolean; user?: User; error?: string }> {
-  if (isLiveBackendConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: updates.name,
-          phone_number: updates.phone,
-          avatar_url: updates.avatar,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-        .select()
-        .single();
-
-      if (error) return { success: false, error: error.message };
-      if (data) return { success: true, user: mapSupabaseProfileToUser(data) };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Profile update failed' };
-    }
+export async function syncUserProfileWithSupabase(
+  userId: string,
+  updates: Partial<User>
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: BACKEND_NOT_CONFIGURED_ERROR };
   }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: updates.name,
+        phone_number: updates.phone,
+        avatar_url: updates.avatar,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    if (data) return { success: true, user: mapSupabaseProfileToUser(data) };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Profile update failed' };
+  }
+
   return { success: true };
 }

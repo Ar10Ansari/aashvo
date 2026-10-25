@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Flatmate } from '../../types';
 import { formatINR } from '../../utils/formatters';
-import { MapPin, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { calculateFlatmateCompatibility } from '../../services/marketplaceService';
+import { MapPin, MessageCircle, CheckCircle2, Sparkles } from 'lucide-react';
 
 interface FlatmateCardProps {
   flatmate: Flatmate;
@@ -9,6 +10,25 @@ interface FlatmateCardProps {
 }
 
 export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }) => {
+  const userPreferences: Partial<Flatmate> = useMemo(() => {
+    const saved = localStorage.getItem('aashvo_flatmate_preferences');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return {
+      foodHabit: 'Vegetarian',
+      sleepRoutine: 'Flexible',
+      cleanliness: 'Spotless',
+      petFriendly: true,
+      smoking: 'No',
+    };
+  }, []);
+
+  const compatibility = useMemo(() => {
+    return calculateFlatmateCompatibility(userPreferences, flatmate);
+  }, [userPreferences, flatmate]);
   return (
     <article
       onClick={() => onSelect(flatmate)}
@@ -56,16 +76,22 @@ export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }
           </div>
         </div>
 
-        {/* Has Room vs Seeking Room Pill */}
-        <span
-          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shadow-sm ${
-            flatmate.hasRoom
-              ? 'bg-forest-50 text-forest-700 border-forest-200'
-              : 'bg-sand-100 text-charcoal-800 border-sand-300'
-          }`}
-        >
-          {flatmate.hasRoom ? 'Has Room' : 'Looking to Team Up'}
-        </span>
+        {/* Badges: Has Room + Compatibility Score */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span
+            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border shadow-xs ${
+              flatmate.hasRoom
+                ? 'bg-forest-50 text-forest-700 border-forest-200'
+                : 'bg-sand-100 text-charcoal-800 border-sand-300'
+            }`}
+          >
+            {flatmate.hasRoom ? 'Has Room' : 'Looking to Team Up'}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-forest-100/80 text-forest-800 border border-forest-200 shadow-xs">
+            <Sparkles className="w-2.5 h-2.5 text-forest-600" />
+            <span>{compatibility.score}% Match</span>
+          </span>
+        </div>
       </div>
 
       {/* Profile Body */}

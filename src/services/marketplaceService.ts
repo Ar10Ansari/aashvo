@@ -9,8 +9,16 @@
  * 5. Device location convenience calculations.
  */
 
-import { Property, PropertyFilterState, User, ListingCategory } from '../types';
-import { supabase, isLiveBackendConfigured, mapSupabasePropertyToApp, mapAppPropertyToSupabaseInsert } from './supabase';
+import { Property, PropertyFilterState, User, ListingCategory, Flatmate, ListingStatus } from '../types';
+import { SEED_FLATMATES } from '../data/seedData';
+import {
+  supabase,
+  isLiveBackendConfigured,
+  mapSupabasePropertyToApp,
+  mapAppPropertyToSupabaseInsert,
+  mapSupabaseFlatmateToApp,
+  mapAppFlatmateToSupabaseInsert,
+} from './supabase';
 
 export interface ListingValidationResult {
   isValid: boolean;
@@ -229,9 +237,16 @@ export function calculateGeoDistanceKm(
 /**
  * Fetches active property listings from Supabase PostgreSQL
  */
+export interface FetchPropertiesOptions {
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'freshness' | 'rent_asc' | 'rent_desc';
+}
+
 export async function fetchPropertiesFromSupabase(
-  filters?: Partial<PropertyFilterState>
-): Promise<{ success: boolean; properties?: Property[]; error?: string }> {
+  filters?: Partial<PropertyFilterState>,
+  options?: FetchPropertiesOptions
+): Promise<{ success: boolean; properties?: Property[]; totalCount?: number; error?: string }> {
   if (!isLiveBackendConfigured || !supabase) {
     return { success: false, error: 'Live backend unconfigured' };
   }
@@ -239,9 +254,17 @@ export async function fetchPropertiesFromSupabase(
   try {
     let query = supabase
       .from('properties')
-      .select('*')
-      .eq('status', 'active')
-      .order('last_verified_date', { ascending: false });
+      .select('*', { count: 'exact' })
+      .eq('status', 'active');
+
+    // Sorting
+    if (options?.sortBy === 'rent_asc') {
+      query = query.order('rent_amount', { ascending: true });
+    } else if (options?.sortBy === 'rent_desc') {
+      query = query.order('rent_amount', { ascending: false });
+    } else {
+      query = query.order('last_availability_check', { ascending: false, nullsFirst: false });
+    }
 
     if (filters?.category && filters.category !== 'all') {
       query = query.eq('category', filters.category);
@@ -255,13 +278,32 @@ export async function fetchPropertiesFromSupabase(
       query = query.lte('rent_amount', filters.maxBudget);
     }
 
-    const { data, error } = await query;
+    if (filters?.city && filters.city.trim() !== '' && filters.city !== 'All Cities') {
+      query = query.ilike('city', `%${filters.city.trim()}%`);
+    }
+
+    if (filters?.locality && filters.locality.trim() !== '' && filters.locality !== 'All Localities') {
+      query = query.ilike('locality', `%${filters.locality.trim()}%`);
+    }
+
+    if (filters?.mealsOffered && filters.mealsOffered !== 'any') {
+      query = query.eq('meals_offered', filters.mealsOffered);
+    }
+
+    // Pagination
+    if (options?.page && options?.pageSize && options.pageSize > 0) {
+      const from = (options.page - 1) * options.pageSize;
+      const to = from + options.pageSize - 1;
+      query = query.range(from, to);
+    }
+
+    const { data, count, error } = await query;
     if (error) {
       return { success: false, error: error.message };
     }
 
     const properties = (data || []).map(mapSupabasePropertyToApp);
-    return { success: true, properties };
+    return { success: true, properties, totalCount: count ?? properties.length };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch properties' };
   }
@@ -301,6 +343,10 @@ export async function createPropertyInSupabase(
   }
 
   // Local deterministic fallback
+  if (import.meta.env.PROD) {
+    return { success: false, errors: ['Live database is unconfigured. Cannot publish listing in production.'] };
+  }
+
   const mockCreated: Property = {
     ...property as Property,
     id: `prop-${Date.now()}`,
@@ -313,33 +359,176 @@ export async function createPropertyInSupabase(
 }
 
 /**
- * Submits an inquiry to Supabase
+ * Fetches a single property by ID from Supabase
  */
-export async function submitInquiryInSupabase(
-  inquiry: {
-    listingId: string;
-    senderId: string;
-    senderName: string;
-    senderEmail: string;
-    senderPhone?: string;
-    message: string;
-    moveInDate?: string;
-  }
-): Promise<{ success: boolean; inquiryId?: string; error?: string }> {
+export async function fetchPropertyByIdFromSupabase(
+  id: string
+): Promise<{ success: boolean; property?: Property; error?: string }> {
   if (isLiveBackendConfigured && supabase) {
     try {
       const { data, error } = await supabase
-        .from('inquiries')
-        .insert({
-          listing_id: inquiry.listingId,
-          sender_id: inquiry.senderId,
-          sender_name: inquiry.senderName,
-          sender_email: inquiry.senderEmail,
-          sender_phone: inquiry.senderPhone || null,
-          message: inquiry.message,
-          move_in_date: inquiry.moveInDate || null,
-          created_at: new Date().toISOString(),
-        })
+        .from('properties')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) return { success: false, error: error.message };
+      if (!data) return { success: false, error: 'Property not found' };
+      return { success: true, property: mapSupabasePropertyToApp(data) };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch property' };
+    }
+  }
+
+  return { success: false, error: 'Live backend unconfigured' };
+}
+
+/**
+ * Updates an existing property listing in Supabase (owner-only under RLS)
+ */
+export async function updatePropertyInSupabase(
+  propertyId: string,
+  updates: Partial<Property>,
+  owner: User
+): Promise<{ success: boolean; property?: Property; errors?: string[] }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const dbRow: Record<string, any> = {};
+      if (updates.title !== undefined) dbRow.title = updates.title.trim();
+      if (updates.description !== undefined) dbRow.description = updates.description.trim();
+      if (updates.locality !== undefined) dbRow.locality = updates.locality.trim();
+      if (updates.city !== undefined) dbRow.city = updates.city.trim();
+      if (updates.rent !== undefined) dbRow.rent_amount = updates.rent;
+      if (updates.deposit !== undefined) dbRow.deposit_amount = updates.deposit;
+      if (updates.maintenance !== undefined) dbRow.maintenance_charge = updates.maintenance;
+      if (updates.furnishing !== undefined) dbRow.furnishing = updates.furnishing;
+      if (updates.images !== undefined) dbRow.images = updates.images;
+      if (updates.status !== undefined) dbRow.status = updates.status;
+
+      const { data, error } = await supabase
+        .from('properties')
+        .update(dbRow)
+        .eq('id', propertyId)
+        .eq('owner_id', owner.id)
+        .select()
+        .single();
+
+      if (error) return { success: false, errors: [error.message] };
+      if (data) return { success: true, property: mapSupabasePropertyToApp(data) };
+      return { success: false, errors: ['Listing not found or update unauthorized under RLS.'] };
+    } catch (err) {
+      return { success: false, errors: [err instanceof Error ? err.message : 'Update failed'] };
+    }
+  }
+
+  if (import.meta.env.PROD) {
+    return { success: false, errors: ['Live database is unconfigured. Cannot update listing in production.'] };
+  }
+
+  return { success: true, property: { ...updates, id: propertyId } as Property };
+}
+
+/**
+ * Deletes a property listing in Supabase (owner-only under RLS)
+ */
+export async function deletePropertyInSupabase(
+  propertyId: string,
+  owner: User
+): Promise<{ success: boolean; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .delete()
+        .eq('id', propertyId)
+        .eq('owner_id', owner.id)
+        .select();
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Listing not found or deletion unauthorized under RLS.' };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Deletion failed' };
+    }
+  }
+
+  if (import.meta.env.PROD) {
+    return { success: false, error: 'Live database is unconfigured. Cannot delete listing in production.' };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Fetches all properties owned by a specific host (including pending_review listings)
+ */
+export async function fetchOwnerPropertiesFromSupabase(
+  ownerId: string
+): Promise<{ success: boolean; properties?: Property[]; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, properties: (data || []).map(mapSupabasePropertyToApp) };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch owner properties' };
+    }
+  }
+
+  return { success: true, properties: [] };
+}
+
+/**
+ * Submits an inquiry / interest request to Supabase (stored in public.interest_requests)
+ * Supports both property listings (property_id) and flatmate connect requests (target_flatmate_id)
+ */
+export interface SubmitInquiryParams {
+  listingId?: string;
+  targetFlatmateId?: string;
+  senderId: string;
+  senderName: string;
+  senderEmail: string;
+  senderPhone?: string;
+  message: string;
+  moveInDate?: string;
+}
+
+export async function submitInquiryInSupabase(
+  inquiry: SubmitInquiryParams
+): Promise<{ success: boolean; inquiryId?: string; error?: string }> {
+  if (!inquiry.listingId && !inquiry.targetFlatmateId) {
+    return { success: false, error: 'Inquiry must target either a property listing or a flatmate profile.' };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const payload: Record<string, any> = {
+        sender_id: inquiry.senderId,
+        sender_name: inquiry.senderName.trim(),
+        sender_email: inquiry.senderEmail.trim(),
+        sender_phone: inquiry.senderPhone?.trim() || '',
+        move_in_date: inquiry.moveInDate?.trim() || 'Immediately',
+        message: inquiry.message.trim(),
+        status: 'pending',
+      };
+
+      if (inquiry.listingId) {
+        payload.property_id = inquiry.listingId;
+      }
+      if (inquiry.targetFlatmateId) {
+        payload.target_flatmate_id = inquiry.targetFlatmateId;
+      }
+
+      const { data, error } = await supabase
+        .from('interest_requests')
+        .insert(payload)
         .select('id')
         .single();
 
@@ -350,5 +539,343 @@ export async function submitInquiryInSupabase(
     }
   }
 
+  if (import.meta.env.PROD) {
+    return { success: false, error: 'Live database is unconfigured. Cannot submit inquiry in production.' };
+  }
+
   return { success: true, inquiryId: `inq-${Date.now()}` };
+}
+
+/**
+ * Fetches inquiries for a property (authorized for property owner under RLS)
+ */
+export async function fetchInquiriesForProperty(
+  propertyId: string
+): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('interest_requests')
+        .select('*')
+        .eq('property_id', propertyId)
+        .order('created_at', { ascending: false });
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, inquiries: data || [] };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch inquiries' };
+    }
+  }
+
+  return { success: true, inquiries: [] };
+}
+
+/**
+ * Fetches inquiries received by a targeted flatmate (authorized under RLS)
+ */
+export async function fetchInquiriesForFlatmate(
+  flatmateProfileId: string
+): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('interest_requests')
+        .select('*')
+        .eq('target_flatmate_id', flatmateProfileId)
+        .order('created_at', { ascending: false });
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, inquiries: data || [] };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch flatmate inquiries' };
+    }
+  }
+
+  return { success: true, inquiries: [] };
+}
+
+// ====================================================================
+// FLATMATE PROFILES & COMPATIBILITY ENGINE
+// ====================================================================
+
+/**
+ * Fetches flatmate discovery profiles from Supabase PostgreSQL
+ */
+export async function fetchFlatmatesFromSupabase(): Promise<{
+  success: boolean;
+  flatmates: Flatmate[];
+  error?: string;
+}> {
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      // First attempt query on public_flatmates view which safely joins public_profiles
+      const { data: viewData, error: viewError } = await supabase
+        .from('public_flatmates')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!viewError && viewData && viewData.length > 0) {
+        return { success: true, flatmates: viewData.map(mapSupabaseFlatmateToApp) };
+      }
+
+      // Fallback query directly on flatmate_profiles table joined with profiles
+      const { data, error } = await supabase
+        .from('flatmate_profiles')
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            full_name,
+            avatar_url,
+            role,
+            id_verified,
+            phone_verified
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error && viewError) return { success: false, flatmates: [], error: error.message };
+      if (data && data.length > 0) {
+        return { success: true, flatmates: data.map(mapSupabaseFlatmateToApp) };
+      }
+    } catch (err) {
+      return { success: false, flatmates: [], error: err instanceof Error ? err.message : 'Failed to fetch flatmates' };
+    }
+  }
+
+  return { success: true, flatmates: SEED_FLATMATES };
+}
+
+/**
+ * Creates or updates a flatmate discovery profile in Supabase
+ */
+export async function upsertFlatmateProfileInSupabase(
+  flatmateData: Partial<Flatmate>,
+  user: User
+): Promise<{ success: boolean; flatmate?: Flatmate; errors?: string[] }> {
+  const errors: string[] = [];
+  if (!flatmateData.occupation || flatmateData.occupation.trim().length === 0) {
+    errors.push('Occupation is required.');
+  }
+  if (!flatmateData.age || flatmateData.age < 18) {
+    errors.push('Age must be at least 18.');
+  }
+  if (!flatmateData.budgetMax || flatmateData.budgetMax <= 0) {
+    errors.push('Maximum monthly budget must be a positive number.');
+  }
+  if (!flatmateData.targetLocalities || flatmateData.targetLocalities.length === 0) {
+    errors.push('At least one target locality is required.');
+  }
+  if (!flatmateData.bio || flatmateData.bio.trim().length < 10) {
+    errors.push('Bio must be at least 10 characters.');
+  }
+
+  if (errors.length > 0) {
+    return { success: false, errors };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const dbRow = mapAppFlatmateToSupabaseInsert(flatmateData, user.id);
+      const { data, error } = await supabase
+        .from('flatmate_profiles')
+        .upsert(dbRow, { onConflict: 'user_id' })
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            full_name,
+            avatar_url,
+            role,
+            id_verified,
+            phone_verified
+          )
+        `)
+        .single();
+
+      if (error) return { success: false, errors: [error.message] };
+      if (data) return { success: true, flatmate: mapSupabaseFlatmateToApp(data) };
+    } catch (err) {
+      return { success: false, errors: [err instanceof Error ? err.message : 'Database error'] };
+    }
+  }
+
+  if (import.meta.env.PROD) {
+    return { success: false, errors: ['Live database is unconfigured. Cannot save flatmate profile in production.'] };
+  }
+
+  return {
+    success: true,
+    flatmate: {
+      id: `flt-${Date.now()}`,
+      name: user.name,
+      avatar: user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      age: flatmateData.age || 23,
+      occupation: flatmateData.occupation || 'Professional',
+      gender: flatmateData.gender || 'female',
+      hasRoom: Boolean(flatmateData.hasRoom),
+      roomDetails: flatmateData.roomDetails,
+      targetLocalities: flatmateData.targetLocalities || ['All Localities'],
+      city: flatmateData.city,
+      budgetMax: flatmateData.budgetMax || 25000,
+      foodHabit: flatmateData.foodHabit || 'Vegetarian',
+      sleepRoutine: flatmateData.sleepRoutine || 'Flexible',
+      cleanliness: flatmateData.cleanliness || 'Spotless',
+      petFriendly: Boolean(flatmateData.petFriendly),
+      smoking: flatmateData.smoking || 'No',
+      bio: flatmateData.bio || '',
+      interests: flatmateData.interests || [],
+      verified: false,
+      postedDate: 'Today',
+    },
+  };
+}
+
+/**
+ * Transparent rule-based 6-dimensional flatmate compatibility scoring
+ * Explains exactly which dimensions match and which diverge (zero black-box AI)
+ */
+export interface FlatmateCompatibilityResult {
+  score: number; // 0 - 100
+  matchLevel: 'High' | 'Good' | 'Moderate';
+  matchedFactors: string[];
+  divergentFactors: string[];
+}
+
+export function calculateFlatmateCompatibility(
+  userPref: Partial<Flatmate>,
+  target: Flatmate
+): FlatmateCompatibilityResult {
+  let matchedWeight = 0;
+  let totalWeight = 0;
+  const matchedFactors: string[] = [];
+  const divergentFactors: string[] = [];
+
+  // Safe normalization of user inputs
+  const safePref = userPref || {};
+
+  // 1. Food Habit / Diet Match (Weight: 20)
+  totalWeight += 20;
+  if (!safePref.foodHabit || safePref.foodHabit === target.foodHabit) {
+    matchedWeight += 20;
+    matchedFactors.push(`Shared diet preference (${target.foodHabit})`);
+  } else if (
+    (safePref.foodHabit === 'Eggetarian' && target.foodHabit === 'Vegetarian') ||
+    (safePref.foodHabit === 'Vegetarian' && target.foodHabit === 'Eggetarian')
+  ) {
+    matchedWeight += 13;
+    matchedFactors.push('Compatible vegetarian-friendly dietary preferences');
+  } else {
+    divergentFactors.push(`Diet: You prefer ${safePref.foodHabit}, flatmate is ${target.foodHabit}`);
+  }
+
+  // 2. Sleep Routine (Weight: 20)
+  totalWeight += 20;
+  if (!safePref.sleepRoutine || safePref.sleepRoutine === target.sleepRoutine || target.sleepRoutine === 'Flexible' || safePref.sleepRoutine === 'Flexible') {
+    matchedWeight += 20;
+    matchedFactors.push(`Compatible sleep schedule (${target.sleepRoutine})`);
+  } else {
+    divergentFactors.push(`Schedule: You are ${safePref.sleepRoutine}, flatmate is ${target.sleepRoutine}`);
+  }
+
+  // 3. Cleanliness Standards (Weight: 15)
+  totalWeight += 15;
+  if (!safePref.cleanliness || safePref.cleanliness === target.cleanliness) {
+    matchedWeight += 15;
+    matchedFactors.push(`Identical cleanliness expectation (${target.cleanliness})`);
+  } else if (
+    (safePref.cleanliness === 'Moderate' && target.cleanliness === 'Spotless') ||
+    (safePref.cleanliness === 'Spotless' && target.cleanliness === 'Moderate')
+  ) {
+    matchedWeight += 10;
+    matchedFactors.push('Close cleanliness standard alignment');
+  } else {
+    divergentFactors.push(`Cleanliness: You prefer ${safePref.cleanliness}, flatmate is ${target.cleanliness}`);
+  }
+
+  // 4. Pet Compatibility (Weight: 15)
+  totalWeight += 15;
+  if (safePref.petFriendly === undefined || safePref.petFriendly === target.petFriendly) {
+    matchedWeight += 15;
+    matchedFactors.push(target.petFriendly ? 'Both pet-friendly' : 'Both prefer pet-free living');
+  } else {
+    divergentFactors.push(`Pets: ${target.petFriendly ? 'Flatmate loves pets' : 'Flatmate prefers no pets'}`);
+  }
+
+  // 5. Smoking Policy (Weight: 15)
+  totalWeight += 15;
+  if (!safePref.smoking || safePref.smoking === target.smoking) {
+    matchedWeight += 15;
+    matchedFactors.push(`Aligned smoking policy (${target.smoking})`);
+  } else if (target.smoking === 'No' && safePref.smoking !== 'No') {
+    divergentFactors.push('Strictly non-smoking living environment');
+  } else {
+    matchedWeight += 8;
+    divergentFactors.push(`Smoking: ${target.smoking}`);
+  }
+
+  // 6. Budget Compatibility (Weight: 15)
+  totalWeight += 15;
+  const userBudget = typeof safePref.budgetMax === 'number' && Number.isFinite(safePref.budgetMax) && safePref.budgetMax > 0
+    ? safePref.budgetMax
+    : null;
+  const targetBudget = typeof target.budgetMax === 'number' && Number.isFinite(target.budgetMax) && target.budgetMax > 0
+    ? target.budgetMax
+    : null;
+
+  if (!userBudget || !targetBudget) {
+    // Missing or flexible budget preference: treat as neutral flexible match
+    matchedWeight += 15;
+    matchedFactors.push('Flexible budget alignment');
+  } else {
+    const diffRatio = Math.abs(userBudget - targetBudget) / Math.max(userBudget, targetBudget);
+    if (diffRatio <= 0.20) {
+      matchedWeight += 15;
+      matchedFactors.push(`Aligned budget expectations (₹${userBudget.toLocaleString('en-IN')} / ₹${targetBudget.toLocaleString('en-IN')})`);
+    } else if (diffRatio <= 0.35) {
+      matchedWeight += 10;
+      matchedFactors.push('Compatible budget bandwidth');
+    } else {
+      divergentFactors.push(`Budget: You budgeted max ₹${userBudget.toLocaleString('en-IN')}, flatmate is ₹${targetBudget.toLocaleString('en-IN')}`);
+    }
+  }
+
+  const score = totalWeight > 0 ? Math.min(100, Math.max(0, Math.round((matchedWeight / totalWeight) * 100))) : 100;
+  let matchLevel: 'High' | 'Good' | 'Moderate' = 'Moderate';
+  if (score >= 80) matchLevel = 'High';
+  else if (score >= 60) matchLevel = 'Good';
+
+  return {
+    score,
+    matchLevel,
+    matchedFactors,
+    divergentFactors,
+  };
+}
+
+/**
+ * Updates a listing moderation status in Supabase (admin only under RLS)
+ */
+export async function updateListingStatusInSupabase(
+  propertyId: string,
+  status: ListingStatus
+): Promise<{ success: boolean; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: true };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('properties')
+      .update({
+        status,
+        last_availability_check: new Date().toISOString(),
+      })
+      .eq('id', propertyId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Status update failed' };
+  }
 }

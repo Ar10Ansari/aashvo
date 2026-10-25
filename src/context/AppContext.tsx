@@ -27,13 +27,19 @@ import {
 import { supabase, isLiveBackendConfigured } from '../services/supabase';
 import {
   fetchPropertiesFromSupabase,
+  fetchFlatmatesFromSupabase,
   createPropertyInSupabase,
+  updateListingStatusInSupabase,
   submitInquiryInSupabase,
 } from '../services/marketplaceService';
 import {
   sanitizeStoredUser,
   canPerformAdminAction,
 } from '../services/authorizationService';
+import {
+  ensureUserProfileExists,
+  parseOAuthErrorFromUrl,
+} from '../services/authService';
 
 interface AppContextType {
   properties: Property[];
@@ -53,8 +59,13 @@ interface AppContextType {
   setIsAdminOpen: (open: boolean) => void;
   isAuthOpen: boolean;
   setIsAuthOpen: (open: boolean) => void;
+  authModalMode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas';
+  setAuthModalMode: (mode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas') => void;
+  openAuthModal: (mode?: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas') => void;
   isHelpOpen: boolean;
   setIsHelpOpen: (open: boolean) => void;
+  isRentalTrustOpen: boolean;
+  setIsRentalTrustOpen: (open: boolean) => void;
   reportingTarget: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null;
   setReportingTarget: (target: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null) => void;
   currentUser: User | null;
@@ -127,7 +138,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return SEED_PROPERTIES;
   });
 
-  const [flatmates] = useState<Flatmate[]>(() => {
+  const [flatmates, setFlatmates] = useState<Flatmate[]>(() => {
     const saved = localStorage.getItem('aashvo_flatmates');
     return saved ? JSON.parse(saved) : SEED_FLATMATES;
   });
@@ -158,7 +169,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isListPropertyOpen, setIsListPropertyOpen] = useState<boolean>(false);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | 'forgot' | 'recovery' | 'personas'>('signin');
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [isRentalTrustOpen, setIsRentalTrustOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const [reportingTarget, setReportingTarget] = useState<{
     type: 'listing' | 'flatmate' | 'user';
@@ -530,6 +543,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    if (isLiveBackendConfigured && supabase) {
+      supabase
+        .from('support_tickets')
+        .update({
+          status: newStatus,
+          updated_at: now,
+          resolved_at: newStatus === 'resolved' ? now : undefined,
+          resolved_by: newStatus === 'resolved' ? adminId : undefined,
+        })
+        .eq('id', ticketId)
+        .then(({ error }) => {
+          if (error) console.warn('[Supabase Ticket Status Update Notice]', error.message);
+        });
+    }
+
     dispatchSupportNotification('status_changed', {
       ticketNumber: ticket.ticketNumber,
       recipientEmail: ticket.userEmail,
@@ -673,10 +701,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
+    if (isLiveBackendConfigured && supabase) {
+      supabase
+        .from('safety_reports')
+        .update({
+          status: action,
+          admin_notes: adminNotes || null,
+        })
+        .eq('id', reportId)
+        .then(({ error }) => {
+          if (error) console.warn('[Supabase Safety Report Resolution Notice]', error.message);
+        });
+    }
+
     showToast(`Report marked as ${action.toUpperCase()}`);
   };
 
-  // Authenticated user state (sanitized on load to prevent localStorage privilege escalation)
+  // Authenticated user state (defaults to null for unauthenticated visitors)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('aashvo_current_user');
     if (saved) {
@@ -685,20 +726,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const sanitized = sanitizeStoredUser(parsed);
         if (sanitized) return sanitized;
       } catch {
-        // Fallback to default
+        // Fallback to null
       }
     }
-    return {
-      id: 'usr-101',
-      name: 'Rohan Varma',
-      email: 'rohan.v@delhitech.in',
-      role: 'renter',
-      phone: '+91 98112 34567',
-      isDemo: true,
-      emailVerified: false,
-      phoneVerified: false,
-      identityVerified: false,
-    };
+    // Strict Guest Default: Unauthenticated visitors must NEVER be silently logged in
+    return null;
   });
 
   // Sync state to localStorage
@@ -715,6 +747,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [connectRequests]);
 
   useEffect(() => {
+    localStorage.setItem('aashvo_flatmates', JSON.stringify(flatmates));
+  }, [flatmates]);
+
+  useEffect(() => {
     if (currentUser) {
       localStorage.setItem('aashvo_current_user', JSON.stringify(currentUser));
     } else {
@@ -722,7 +758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
-  // Hydrate live database properties if Supabase is connected
+  // Hydrate live database properties and flatmate profiles if Supabase is connected
   useEffect(() => {
     if (isLiveBackendConfigured && supabase) {
       fetchPropertiesFromSupabase().then(res => {
@@ -732,6 +768,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch(err => {
         console.warn('[Supabase Property Hydration Notice]', err);
       });
+
+      fetchFlatmatesFromSupabase().then(res => {
+        if (res.success && res.flatmates && res.flatmates.length > 0) {
+          setFlatmates(res.flatmates);
+        }
+      }).catch(err => {
+        console.warn('[Supabase Flatmate Hydration Notice]', err);
+      });
+    }
+  }, []);
+
+  // Check for URL OAuth callbacks/errors and password recovery hashes on mount
+  useEffect(() => {
+    const oauthError = parseOAuthErrorFromUrl(window.location.search) || parseOAuthErrorFromUrl(window.location.hash);
+    if (oauthError.hasError) {
+      showToast(oauthError.errorDescription || 'Authentication was cancelled or failed.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (window.location.hash.includes('type=recovery')) {
+      setAuthModalMode('recovery');
+      setIsAuthOpen(true);
+      showToast('Password recovery token detected. Please set your new password.');
     }
   }, []);
 
@@ -739,39 +798,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isLiveBackendConfigured || !supabase) return;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const meta = session.user.user_metadata || {};
-        setCurrentUser({
-          id: session.user.id,
-          name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Aashvo Member',
-          email: session.user.email || '',
-          role: (meta.role as any) || 'renter',
-          phone: session.user.phone || meta.phone,
-          avatar: meta.avatar_url,
-          emailVerified: Boolean(session.user.email_confirmed_at),
-          phoneVerified: Boolean(session.user.phone_confirmed_at),
-          authProvider: session.user.app_metadata?.provider === 'google' ? 'google' : 'email',
-        });
+        const user = await ensureUserProfileExists(session.user);
+        setCurrentUser(user);
       }
     }).catch(err => {
       console.warn('[Supabase Session Check Notice]', err);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const meta = session.user.user_metadata || {};
-        setCurrentUser({
-          id: session.user.id,
-          name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'Aashvo Member',
-          email: session.user.email || '',
-          role: (meta.role as any) || 'renter',
-          phone: session.user.phone || meta.phone,
-          avatar: meta.avatar_url,
-          emailVerified: Boolean(session.user.email_confirmed_at),
-          phoneVerified: Boolean(session.user.phone_confirmed_at),
-          authProvider: session.user.app_metadata?.provider === 'google' ? 'google' : 'email',
-        });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthModalMode('recovery');
+        setIsAuthOpen(true);
+        showToast('Password recovery link confirmed. Please enter your new password.');
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        localStorage.removeItem('aashvo_current_user');
+      } else if (session?.user) {
+        const user = await ensureUserProfileExists(session.user);
+        setCurrentUser(user);
       }
     });
 
@@ -839,6 +885,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       supabase.auth.signOut().catch(() => {});
     }
     setCurrentUser(null);
+    localStorage.removeItem('aashvo_current_user');
     showToast('Signed out successfully');
   };
 
@@ -876,10 +923,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    const previousProperty = properties.find(p => p.id === id);
+    const previousStatus = previousProperty?.status;
+
     setProperties(prev =>
       prev.map(p => (p.id === id ? { ...p, status, lastVerifiedDate: new Date().toISOString() } : p))
     );
-    showToast(`Listing status updated to ${status.toUpperCase()}`);
+
+    if (isLiveBackendConfigured && supabase) {
+      updateListingStatusInSupabase(id, status).then(res => {
+        if (res.success) {
+          showToast(`Listing status updated to ${status.toUpperCase()}`);
+        } else {
+          // Revert optimistic update on failure
+          if (previousStatus) {
+            setProperties(prev =>
+              prev.map(p => (p.id === id ? { ...p, status: previousStatus } : p))
+            );
+          }
+          showToast(`Status update failed: ${res.error || 'Server authorization rejected change'}`);
+        }
+      }).catch(err => {
+        console.warn('[Supabase Listing Status Update Notice]', err);
+        if (previousStatus) {
+          setProperties(prev =>
+            prev.map(p => (p.id === id ? { ...p, status: previousStatus } : p))
+          );
+        }
+        showToast('Network error updating listing status.');
+      });
+    } else {
+      showToast(`Listing status updated to ${status.toUpperCase()} (Preview mode)`);
+    }
   };
 
   const addProperty = (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => {
@@ -916,18 +991,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConnectRequests(prev => [newReq, ...prev]);
 
     if (isLiveBackendConfigured && supabase) {
+      const isFlatmate = reqData.targetType === 'flatmate';
       submitInquiryInSupabase({
-        listingId: reqData.targetId,
-        senderId: currentUser?.id || 'guest',
+        listingId: isFlatmate ? undefined : reqData.targetId,
+        targetFlatmateId: isFlatmate ? reqData.targetId : undefined,
+        senderId: currentUser?.id || '00000000-0000-0000-0000-000000000000',
         senderName: reqData.senderName,
         senderEmail: reqData.senderEmail,
         senderPhone: reqData.senderPhone,
         message: reqData.message,
         moveInDate: reqData.moveInDate,
+      }).then(res => {
+        if (res.success) {
+          showToast(isFlatmate ? 'Direct connection request dispatched to flatmate!' : 'Direct inquiry dispatched to host!');
+        } else {
+          showToast(`Inquiry dispatch failed: ${res.error || 'Please complete verification before sending inquiries'}`);
+        }
       }).catch(err => {
         console.warn('[Supabase Inquiry Submission Notice]', err);
+        showToast('Inquiry submission failed. Please try again.');
       });
-      showToast('Direct inquiry dispatched to host!');
     } else {
       showToast('Direct inquiry recorded in local preview (Live notifications activate upon Supabase configuration).');
     }
@@ -953,8 +1036,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAdminOpen,
         isAuthOpen,
         setIsAuthOpen,
+        authModalMode,
+        setAuthModalMode,
+        openAuthModal: (mode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas' = 'signin') => {
+          setAuthModalMode(mode);
+          setIsAuthOpen(true);
+        },
         isHelpOpen,
         setIsHelpOpen,
+        isRentalTrustOpen,
+        setIsRentalTrustOpen,
         reportingTarget,
         setReportingTarget,
         currentUser,

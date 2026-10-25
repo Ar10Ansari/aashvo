@@ -9,8 +9,9 @@ export const Navbar: React.FC = () => {
     setActiveTab,
     setIsListPropertyOpen,
     setIsAdminOpen,
-    setIsAuthOpen,
+    openAuthModal,
     setIsHelpOpen,
+    setIsRentalTrustOpen,
     currentUser,
     logout,
   } = useApp();
@@ -115,6 +116,15 @@ export const Navbar: React.FC = () => {
                 <HelpCircle className="w-3.5 h-3.5 text-forest-700" />
                 <span>Help</span>
               </button>
+
+              <button
+                onClick={() => setIsRentalTrustOpen(true)}
+                className="px-2.5 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
+                title="Rental Trust, Agreements & Ledger"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-forest-700" />
+                <span>Rental Trust</span>
+              </button>
             </nav>
           </div>
 
@@ -142,20 +152,42 @@ export const Navbar: React.FC = () => {
                     {currentUser.name.charAt(0)}
                   </div>
                   <span className="max-w-[120px] truncate">{currentUser.name}</span>
+                  {currentUser.isDemo && (
+                    <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded-full">
+                      Demo
+                    </span>
+                  )}
                   <ChevronDown className="w-4 h-4 text-charcoal-400" />
                 </button>
 
                 {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-charcoal-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-lg border border-charcoal-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-2 border-b border-charcoal-100">
                       <p className="text-xs text-charcoal-400 uppercase tracking-wider font-semibold">Active Profile</p>
                       <p className="text-sm font-semibold text-charcoal-800">{currentUser.name}</p>
-                      <span className="inline-block mt-1 text-xs bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full font-medium">
-                        Role: {currentUser.role.toUpperCase()}
-                      </span>
+                      {currentUser.isDemo ? (
+                        <span className="inline-block mt-1 text-[11px] bg-amber-50 text-amber-800 border border-amber-200/80 px-2 py-0.5 rounded-full font-semibold">
+                          Non-Privileged Demo Preview
+                        </span>
+                      ) : (
+                        <span className="inline-block mt-1 text-xs bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full font-medium">
+                          Role: {currentUser.role.toUpperCase()}
+                        </span>
+                      )}
                     </div>
 
                     <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          setIsRentalTrustOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-forest-600" />
+                        <span>Rental Trust & Ledger</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
@@ -181,7 +213,7 @@ export const Navbar: React.FC = () => {
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
-                          setIsAuthOpen(true);
+                          openAuthModal('personas');
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
                       >
@@ -206,12 +238,20 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => setIsAuthOpen(true)}
-                className="text-sm font-medium text-charcoal-700 hover:text-forest-700 px-4 py-2 rounded-full hover:bg-ivory-300 transition-all"
-              >
-                Sign in
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => openAuthModal('signin')}
+                  className="text-sm font-medium text-charcoal-700 hover:text-forest-700 px-3.5 py-2 rounded-full hover:bg-ivory-300 transition-all"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => openAuthModal('signup')}
+                  className="text-xs font-semibold text-forest-800 bg-forest-50 hover:bg-forest-100 border border-forest-300/80 px-3.5 py-2 rounded-full transition-all shadow-2xs"
+                >
+                  Register
+                </button>
+              </div>
             )}
 
             {/* List Property Main CTA */}
@@ -312,6 +352,17 @@ export const Navbar: React.FC = () => {
 
             <button
               onClick={() => {
+                setIsRentalTrustOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              className="w-full bg-white border border-sand-300 text-charcoal-700 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center space-x-2"
+            >
+              <ShieldCheck className="w-4 h-4 text-forest-600" />
+              <span>Rental Trust & Protection</span>
+            </button>
+
+            <button
+              onClick={() => {
                 setIsHelpOpen(true);
                 setMobileMenuOpen(false);
               }}
@@ -334,15 +385,53 @@ export const Navbar: React.FC = () => {
               </button>
             )}
 
-            <button
-              onClick={() => {
-                setIsAuthOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full bg-ivory-300/80 text-charcoal-800 py-2.5 rounded-xl text-sm font-medium"
-            >
-              {currentUser ? `Signed in as ${currentUser.name}` : 'Sign in / Switch Account'}
-            </button>
+            {currentUser ? (
+              <div className="space-y-1.5 pt-1">
+                <button
+                  onClick={() => {
+                    openAuthModal('personas');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full bg-ivory-300/80 text-charcoal-800 py-2.5 rounded-xl text-sm font-medium text-left px-4 flex items-center justify-between"
+                >
+                  <span className="truncate">Signed in: <strong>{currentUser.name}</strong></span>
+                  {currentUser.isDemo && (
+                    <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold ml-2">Demo</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    openAuthModal('signin');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full bg-white border border-charcoal-200 text-charcoal-800 py-2.5 rounded-xl text-xs font-semibold text-center"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => {
+                    openAuthModal('signup');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full bg-forest-800 text-white py-2.5 rounded-xl text-xs font-semibold text-center"
+                >
+                  Register
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

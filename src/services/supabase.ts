@@ -6,7 +6,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Property, User, SupportTicket, SafetyReport } from '../types';
+import { Property, User, SupportTicket, SafetyReport, Flatmate } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -199,5 +199,56 @@ export function mapSupabaseReportToApp(row: Record<string, any>): SafetyReport {
     priority: row.priority || 'normal',
     status: row.status || 'pending',
     createdAt: row.created_at,
+  };
+}
+
+export function mapSupabaseFlatmateToApp(row: Record<string, any>): Flatmate {
+  const profile = row.profiles || {};
+  const displayName = profile.full_name || row.full_name || row.name || 'Aashvo Member';
+  const displayAvatar = profile.avatar_url || row.avatar_url || row.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+  return {
+    id: row.id,
+    name: displayName,
+    age: Number(row.age) || 22,
+    occupation: row.occupation || 'Professional',
+    avatar: displayAvatar,
+    gender: (row.gender as any) || 'female',
+    hasRoom: Boolean(row.has_room),
+    roomDetails: row.room_details || undefined,
+    targetLocalities: Array.isArray(row.target_localities) ? row.target_localities : ['All Localities'],
+    city: row.city || undefined,
+    budgetMax: Number(row.budget_max) || 25000,
+    foodHabit: (row.food_habit as any) || 'Vegetarian',
+    sleepRoutine: (row.sleep_routine as any) || 'Flexible',
+    cleanliness: (row.cleanliness as any) || 'Spotless',
+    petFriendly: Boolean(row.pet_friendly),
+    smoking: (row.smoking as any) || 'No',
+    bio: row.bio || '',
+    interests: Array.isArray(row.interests) ? row.interests : [],
+    verified: Boolean(row.verified),
+    postedDate: row.created_at ? new Date(row.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : 'Recently',
+  };
+}
+
+export function mapAppFlatmateToSupabaseInsert(flatmate: Partial<Flatmate>, userId: string): Record<string, any> {
+  return {
+    user_id: userId,
+    occupation: flatmate.occupation?.trim() || 'Professional',
+    age: flatmate.age || 22,
+    gender: flatmate.gender || 'female',
+    has_room: Boolean(flatmate.hasRoom),
+    room_details: flatmate.roomDetails?.trim() || null,
+    target_localities: flatmate.targetLocalities && flatmate.targetLocalities.length > 0
+      ? flatmate.targetLocalities
+      : ['All Localities'],
+    budget_max: flatmate.budgetMax || 25000,
+    food_habit: flatmate.foodHabit || 'Vegetarian',
+    sleep_routine: flatmate.sleepRoutine || 'Flexible',
+    cleanliness: flatmate.cleanliness || 'Spotless',
+    pet_friendly: Boolean(flatmate.petFriendly),
+    smoking: flatmate.smoking || 'No',
+    bio: flatmate.bio?.trim() || '',
+    interests: flatmate.interests || [],
+    verified: false, // Must be false for non-admins (enforced by DB trigger)
   };
 }

@@ -4,15 +4,94 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aashvo — Find your place. Find your people | Pan-India Shared Living</title>
-    <meta name="description" content="Discover flatmates, rooms in family homes with meals, and flats across Indian cities with complete rent & deposit transparency, verified availability, and zero broker markups." />
     
+    <!-- Primary SEO Metadata -->
+    <title>Aashvo — Find your place. Find your people | Shared Living & Rental Trust</title>
+    <meta name="description" content="Discover verified flatmates, rooms in family homes with homecooked meals, and direct-owner flats across Delhi NCR, Bengaluru, and Mumbai with itemized costs, zero broker fees, and rental trust protection." />
+    <meta name="keywords" content="flatmates, room for rent, family stays, homestays with meals, zero brokerage flats, rental agreement, rental trust, Delhi NCR, Gurugram, Bengaluru, Mumbai" />
+    <link rel="canonical" href="https://aashvo.vercel.app/" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#244737" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://aashvo.vercel.app/" />
+    <meta property="og:site_name" content="Aashvo" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:title" content="Aashvo — Find your place. Find your people" />
+    <meta property="og:description" content="Verified rooms, flatmates, and family stays with complete cost transparency and rental agreement protection across Delhi NCR, Bengaluru, and Mumbai." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&h=630&q=80" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Aashvo verified accommodation and rental trust living space" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://aashvo.vercel.app/" />
+    <meta name="twitter:title" content="Aashvo — Find your place. Find your people" />
+    <meta name="twitter:description" content="Find verified flatmates, homecooked meals in family stays, and direct-owner rooms with zero brokerage markups." />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&h=630&q=80" />
+
     <!-- Google Fonts: Playfair Display & Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data: Organization & WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://aashvo.vercel.app/#organization",
+          "name": "Aashvo",
+          "url": "https://aashvo.vercel.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://aashvo.vercel.app/vite.svg",
+            "caption": "Aashvo Logo"
+          },
+          "description": "Curated shared living, flatmate discovery, and verified family homestay marketplace across Delhi NCR, Bengaluru, and Mumbai with zero brokerage and rental trust protection.",
+          "foundingDate": "2026",
+          "areaServed": "India",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Support",
+            "email": "support@aashvo.in"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://aashvo.vercel.app/#website",
+          "url": "https://aashvo.vercel.app/",
+          "name": "Aashvo",
+          "publisher": {
+            "@id": "https://aashvo.vercel.app/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://aashvo.vercel.app/?search={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://aashvo.vercel.app/#breadcrumb",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://aashvo.vercel.app/"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
-  <body class="bg-ivory-200 text-charcoal font-sans antialiased selection:bg-sand-300 selection:text-forest-900">
+  <body class="bg-[#F5F3ED] text-[#292D2A] font-sans antialiased selection:bg-sand-300 selection:text-forest-900">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

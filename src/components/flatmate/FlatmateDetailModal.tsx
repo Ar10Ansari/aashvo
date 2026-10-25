@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Flatmate } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { formatINR } from '../../utils/formatters';
-import { X, CheckCircle2, MapPin, Send, ShieldAlert } from 'lucide-react';
+import { calculateFlatmateCompatibility } from '../../services/marketplaceService';
+import { X, CheckCircle2, MapPin, Send, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface FlatmateDetailModalProps {
   flatmate: Flatmate;
@@ -19,6 +20,28 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectSent, setConnectSent] = useState(false);
+
+  const userPreferences: Partial<Flatmate> = useMemo(() => {
+    const saved = localStorage.getItem('aashvo_flatmate_preferences');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback
+      }
+    }
+    return {
+      foodHabit: 'Vegetarian',
+      sleepRoutine: 'Flexible',
+      cleanliness: 'Spotless',
+      petFriendly: true,
+      smoking: 'No',
+    };
+  }, []);
+
+  const compatibility = useMemo(() => {
+    return calculateFlatmateCompatibility(userPreferences, flatmate);
+  }, [userPreferences, flatmate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +144,27 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
 
           {/* Living Compatibility Matrix */}
           <div>
-            <h3 className="font-serif text-lg font-semibold text-charcoal-900 mb-3">Living Compatibility</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-serif text-lg font-semibold text-charcoal-900">Living Compatibility</h3>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-forest-50 border border-forest-200 text-forest-800 text-xs font-semibold shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-forest-600" />
+                <span>{compatibility.score}% Match ({compatibility.matchLevel})</span>
+              </div>
+            </div>
+
+            {/* Explainable match factors */}
+            {compatibility.matchedFactors.length > 0 && (
+              <div className="mb-3.5 p-3.5 rounded-2xl bg-forest-50/70 border border-forest-100 text-xs text-forest-900">
+                <span className="font-bold block uppercase tracking-wider text-[10px] text-forest-800 mb-1">
+                  Why this is a strong match:
+                </span>
+                <ul className="list-disc list-inside space-y-0.5 text-forest-700 text-xs font-medium">
+                  {compatibility.matchedFactors.map((factor, idx) => (
+                    <li key={idx}>{factor}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="bg-ivory-100 p-3 rounded-2xl border border-charcoal-100">
                 <span className="text-charcoal-400 block font-semibold uppercase tracking-wider text-[10px]">Diet & Food</span>
