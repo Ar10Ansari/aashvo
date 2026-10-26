@@ -30,7 +30,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
   // Total move-in calculation
   const totalMoveInEstimate = property.rent + property.deposit + property.maintenance + property.brokerageFee;
 
-  const handleSendInquiry = (e: React.FormEvent) => {
+  const handleSendInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!senderName || !senderPhone) {
       showToast('Please provide your name and phone number to schedule a visit.');
@@ -38,8 +38,8 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      submitConnectRequest({
+    try {
+      const result = await submitConnectRequest({
         targetId: property.id,
         targetType: 'property',
         senderName,
@@ -48,9 +48,10 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
         moveInDate,
         message,
       });
+      if (result.success) setInquirySent(true);
+    } finally {
       setIsSubmitting(false);
-      setInquirySent(true);
-    }, 600);
+    }
   };
 
 

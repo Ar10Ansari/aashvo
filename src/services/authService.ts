@@ -68,7 +68,7 @@ export interface OtpStateRecord {
 // In-memory security state stores for server-side evaluation simulation
 const activeOtpSessions = new Map<string, OtpStateRecord>();
 const verifiedPhoneRegistry = new Set<string>(); // Stores trusted user IDs with confirmed phone numbers
-const registeredUserDirectory = new Map<string, { user: User; passwordHash: string; emailConfirmed: boolean }>();
+const registeredUserDirectory = new Map<string, { user: User; emailConfirmed: boolean }>();
 
 /**
  * Validates whether an email format conforms to standard syntax
@@ -94,7 +94,7 @@ export function isValidPassword(password: string): { valid: boolean; reason?: st
 /**
  * Initiates Google OAuth with PKCE and state validation
  */
-export function initiateGoogleOAuth(options: OAuthInitiateOptions): OAuthInitiateResult {
+export async function initiateGoogleOAuth(options: OAuthInitiateOptions): Promise<OAuthInitiateResult> {
   const { redirectTo, allowedOrigins } = options;
 
   let redirectOrigin = '';
@@ -108,9 +108,22 @@ export function initiateGoogleOAuth(options: OAuthInitiateOptions): OAuthInitiat
     throw new Error(`Unauthorized OAuth redirect origin: ${redirectOrigin}`);
   }
 
-  // Generate secure random state and PKCE verifier
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const codeVerifier = Math.random().toString(36).substring(2, 20) + Math.random().toString(36).substring(2, 20);
+  // Generate cryptographically random state and PKCE verifier.
+  const randomBytes = (size: number): Uint8Array => {
+    const bytes = new Uint8Array(size);
+    crypto.getRandomValues(bytes);
+    return bytes;
+  };
+  const toBase64Url = (bytes: Uint8Array): string => {
+    let binary = '';
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  };
+
+  const state = toBase64Url(randomBytes(32));
+  const codeVerifier = toBase64Url(randomBytes(32));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+  const codeChallenge = toBase64Url(new Uint8Array(digest));
 
   const params = new URLSearchParams({
     provider: 'google',
@@ -120,7 +133,7 @@ export function initiateGoogleOAuth(options: OAuthInitiateOptions): OAuthInitiat
     scope: 'openid email profile',
     state,
     code_challenge_method: 'S256',
-    code_challenge: codeVerifier, // In production, SHA-256 hash
+    code_challenge: codeChallenge,
   });
 
   return {
@@ -201,7 +214,6 @@ export function registerWithEmail(params: EmailSignUpParams): { success: boolean
 
   registeredUserDirectory.set(normalizedEmail, {
     user: newUser,
-    passwordHash: `hash_${password}`,
     emailConfirmed: false,
   });
 
@@ -565,7 +577,13 @@ export async function ensureUserProfileExists(
         .maybeSingle();
 
       if (profile) {
-        return mapSupabaseProfileToUser(profile);
+        return {
+          ...mapSupabaseProfileToUser(profile),
+          emailVerified: Boolean(profile.email_verified || authUser.email_confirmed_at),
+          phoneVerified: Boolean(profile.phone_verified || authUser.phone_confirmed_at),
+          authProvider: authUser.user_metadata?.avatar_url ? 'google' : 'email',
+          accountStatus: authUser.email_confirmed_at || profile.email_verified ? 'active' : 'unverified',
+        };
       }
 
       // 2. Insert profile if missing (self-healing client provisioning)
@@ -588,7 +606,13 @@ export async function ensureUserProfileExists(
         .single();
 
       if (inserted) {
-        return mapSupabaseProfileToUser(inserted);
+        return {
+          ...mapSupabaseProfileToUser(inserted),
+          emailVerified: Boolean(inserted.email_verified || authUser.email_confirmed_at),
+          phoneVerified: Boolean(inserted.phone_verified || authUser.phone_confirmed_at),
+          authProvider: authUser.user_metadata?.avatar_url ? 'google' : 'email',
+          accountStatus: authUser.email_confirmed_at ? 'active' : 'unverified',
+        };
       }
     } catch (err) {
       console.warn('[Profile Provisioning Notice]', err);

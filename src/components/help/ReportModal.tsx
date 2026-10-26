@@ -72,7 +72,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ target, onClose }) => 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState<string>('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -88,9 +88,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ target, onClose }) => 
     }
 
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      const result = submitSafetyReport({
+    try {
+      const result = await submitSafetyReport({
         reporterId: currentUser?.id,
         reporterName: currentUser?.name || 'Anonymous Community Member',
         reporterEmail: reporterEmail.trim().toLowerCase(),
@@ -101,15 +100,17 @@ export const ReportModal: React.FC<ReportModalProps> = ({ target, onClose }) => 
         details: details.trim(),
       });
 
-      setIsSubmitting(false);
-
       if (result.success) {
         setIsSubmitted(true);
         setSubmissionFeedback(result.message);
       } else {
         setFormError(result.message);
       }
-    }, 350);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Report submission failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

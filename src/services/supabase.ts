@@ -85,7 +85,9 @@ export function mapSupabasePropertyToApp(row: Record<string, any>): Property {
     category: row.category || 'flats_rooms',
     familyLivesOnProperty: Boolean(row.family_lives_on_property),
     mealsOffered: row.meals_offered || 'none',
-    optionalMealCost: row.optional_meal_cost ? Number(row.optional_meal_cost) : undefined,
+    optionalMealCost: row.optional_meal_cost !== undefined && row.optional_meal_cost !== null
+      ? Number(row.optional_meal_cost)
+      : undefined,
     rent: Number(row.rent_amount) || 0,
     deposit: Number(row.deposit_amount) || 0,
     maintenance: Number(row.maintenance_charge) || 0,
@@ -98,7 +100,10 @@ export function mapSupabasePropertyToApp(row: Record<string, any>): Property {
     bedrooms: Number(row.bedrooms) || 1,
     bathrooms: Number(row.bathrooms) || 1,
     availableFrom: row.available_from || 'Immediately',
-    lastVerifiedDate: row.last_verified_date || row.created_at || new Date().toISOString(),
+    coordinates: row.latitude !== null && row.latitude !== undefined && row.longitude !== null && row.longitude !== undefined
+      ? { lat: Number(row.latitude), lng: Number(row.longitude) }
+      : undefined,
+    lastVerifiedDate: row.last_availability_check || row.last_verified_date || row.created_at || new Date().toISOString(),
     images: Array.isArray(row.images) && row.images.length > 0
       ? row.images
       : ['https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&q=80'],
@@ -119,6 +124,8 @@ export function mapAppPropertyToSupabaseInsert(property: Partial<Property>, owne
     city: property.city?.trim() || 'Delhi',
     state: property.state?.trim() || null,
     pincode: property.pincode?.trim() || null,
+    latitude: property.coordinates?.lat ?? null,
+    longitude: property.coordinates?.lng ?? null,
     address_short: property.addressShort?.trim() || property.locality?.trim(),
     property_type: property.propertyType || 'apartment',
     room_type: property.roomType || 'private_room',
@@ -140,7 +147,6 @@ export function mapAppPropertyToSupabaseInsert(property: Partial<Property>, owne
     house_rules: property.rules || [],
     gender_preference: property.genderPreference || 'any',
     status: 'pending_review', // Default to editorial review queue
-    images: property.images || [],
   };
 }
 
@@ -151,9 +157,11 @@ export function mapSupabaseProfileToUser(row: Record<string, any>): User {
     name: row.full_name || 'Aashvo Member',
     role: row.role || 'renter',
     avatar: row.avatar_url,
+    emailVerified: Boolean(row.email_verified),
     phoneVerified: Boolean(row.phone_verified),
     phone: row.phone_number,
     identityVerified: Boolean(row.id_verified),
+    accountStatus: row.account_status || (row.email_verified ? 'active' : 'unverified'),
   };
 }
 
@@ -174,7 +182,7 @@ export function mapSupabaseTicketToApp(row: Record<string, any>): SupportTicket 
     status: row.status || 'open',
     assignedTo: row.assigned_to,
     assignedName: row.assigned_name,
-    attachments: [],
+    attachments: Array.isArray(row.attachments) ? row.attachments : [],
     messages: [],
     auditEvents: [],
     createdAt: row.created_at,
@@ -185,13 +193,14 @@ export function mapSupabaseTicketToApp(row: Record<string, any>): SupportTicket 
 }
 
 export function mapSupabaseReportToApp(row: Record<string, any>): SafetyReport {
+  const targetId = row.target_id || row.reported_property_id || row.reported_flatmate_id || row.reported_user_id;
   return {
     id: row.id,
     reporterId: row.reporter_id,
     reporterEmail: row.reporter_email,
     targetType: row.target_type,
-    targetId: row.target_id,
-    targetTitle: row.target_title,
+    targetId,
+    targetTitle: row.target_title || 'Reported community item',
     reasonCode: row.reason_code,
     reasonLabel: row.reason_code, // enhanced in service layer
     details: row.details,

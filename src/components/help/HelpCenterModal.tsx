@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FAQ_ITEMS, FAQ_CATEGORY_LABELS, SAFETY_GUIDELINES } from '../../data/faqData';
-import { TicketCategory, TicketStatus } from '../../types';
+import { SupportTicket, TicketCategory, TicketStatus } from '../../types';
 import {
   validateTicketSubmission,
   validateTicketAttachment,
+  fetchGuestSupportTicketFromSupabase,
 } from '../../services/supportService';
+import { isLiveBackendConfigured } from '../../services/supabase';
 import {
   X,
   Search,
@@ -70,6 +72,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
   const [guestEmail, setGuestEmail] = useState('');
   const [guestLookupError, setGuestLookupError] = useState<string | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [guestTicket, setGuestTicket] = useState<SupportTicket | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [isReplying, setIsReplying] = useState(false);
 
@@ -97,13 +100,13 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
   // Selected Ticket for details/conversation view
   const activeTicket = useMemo(() => {
     if (selectedTicketId) {
-      return supportTickets.find(t => t.id === selectedTicketId || t.ticketNumber === selectedTicketId) || null;
+      return supportTickets.find(t => t.id === selectedTicketId || t.ticketNumber === selectedTicketId) || guestTicket;
     }
     if (myTickets.length > 0) {
       return myTickets[0];
     }
     return null;
-  }, [selectedTicketId, supportTickets, myTickets]);
+  }, [selectedTicketId, supportTickets, myTickets, guestTicket]);
 
   // File Upload Handler with strict size & MIME checks
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,7 +153,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
   };
 
   // Submit Support Ticket
-  const handleSubmitTicket = (e: React.FormEvent) => {
+  const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors([]);
 
@@ -170,8 +173,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
     }
 
     setIsSubmitting(true);
-
-    setTimeout(() => {
+    try {
       const ticket = createSupportTicket(
         {
           userId: currentUser?.id,
@@ -197,15 +199,18 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
         },
         description.trim()
       );
-
+      const persistedTicket = await ticket;
       setIsSubmitting(false);
-      setCreatedTicketNumber(ticket.ticketNumber);
-      setSelectedTicketId(ticket.id);
-    }, 400);
+      setCreatedTicketNumber(persistedTicket.ticketNumber);
+      setSelectedTicketId(persistedTicket.id);
+    } catch (err) {
+      setIsSubmitting(false);
+      setFormErrors([err instanceof Error ? err.message : 'Support ticket submission failed.']);
+    }
   };
 
   // Guest Ticket Lookup
-  const handleGuestLookup = (e: React.FormEvent) => {
+  const handleGuestLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuestLookupError(null);
 
@@ -214,6 +219,17 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
 
     if (!trimmedNumber || !trimmedEmail) {
       setGuestLookupError('Please enter both your Ticket Reference Number and the email used when submitting.');
+      return;
+    }
+
+    if (isLiveBackendConfigured) {
+      const result = await fetchGuestSupportTicketFromSupabase(trimmedNumber, trimmedEmail);
+      if (result.success && result.ticket) {
+        setGuestTicket(result.ticket);
+        setSelectedTicketId(result.ticket.id);
+        return;
+      }
+      setGuestLookupError(result.error || 'No matching ticket found for that Reference Number and Email combination.');
       return;
     }
 

@@ -78,9 +78,9 @@ describe('Aashvo Authentication Flows & Account Security', () => {
 
   // Test 3: Google OAuth success and failure handling
   describe('Google OAuth PKCE & Origin Security', () => {
-    it('initiates Google OAuth with secure PKCE challenge and state parameter for allowed origins', () => {
+    it('initiates Google OAuth with secure PKCE challenge and state parameter for allowed origins', async () => {
       const redirectUri = 'https://aashvo.in/auth/callback';
-      const oauthInit = initiateGoogleOAuth({
+      const oauthInit = await initiateGoogleOAuth({
         provider: 'google',
         redirectTo: redirectUri,
         allowedOrigins,
@@ -94,15 +94,13 @@ describe('Aashvo Authentication Flows & Account Security', () => {
       expect(oauthInit.codeVerifier).toBeDefined();
     });
 
-    it('rejects Google OAuth initiation for unauthorized redirect origins', () => {
+    it('rejects Google OAuth initiation for unauthorized redirect origins', async () => {
       const maliciousRedirect = 'https://malicious-phishing-site.com/steal-token';
-      expect(() => {
-        initiateGoogleOAuth({
+      await expect(initiateGoogleOAuth({
           provider: 'google',
           redirectTo: maliciousRedirect,
           allowedOrigins,
-        });
-      }).toThrow('Unauthorized OAuth redirect origin');
+        })).rejects.toThrow('Unauthorized OAuth redirect origin');
     });
 
     it('handles OAuth callback successfully when state matches and code is valid', () => {

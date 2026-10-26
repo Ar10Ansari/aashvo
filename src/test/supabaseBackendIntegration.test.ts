@@ -106,6 +106,7 @@ describe('Supabase Backend Integration & Mappers', () => {
       rules: ['Keep common areas clean'],
       genderPreference: 'any',
       images: ['https://example.com/room.jpg'],
+      coordinates: { lat: 12.9121, lng: 77.6446 },
     };
 
     const insertRow = mapAppPropertyToSupabaseInsert(appProp, 'usr-test-999');
@@ -115,6 +116,9 @@ describe('Supabase Backend Integration & Mappers', () => {
     expect(insertRow.status).toBe('pending_review'); // Safety default
     expect(insertRow.family_lives_on_property).toBe(false);
     expect(insertRow.meals_offered).toBe('none');
+    expect(insertRow.latitude).toBe(12.9121);
+    expect(insertRow.longitude).toBe(77.6446);
+    expect(insertRow.images).toBeUndefined();
   });
 
   it('correctly maps database profile row to User object', () => {
@@ -186,6 +190,25 @@ describe('Supabase Backend Integration & Mappers', () => {
     expect(report.reasonCode).toBe('misleading_charges');
     expect(report.priority).toBe('high');
     expect(report.evidenceUrl).toBe('https://storage.supabase.co/reports/proof.png');
+  });
+
+  it('maps normalized safety report target columns without requiring legacy target_id fields', () => {
+    const report = mapSupabaseReportToApp({
+      id: 'rep-db-003',
+      reporter_email: 'reporter@example.com',
+      target_type: 'listing',
+      reported_property_id: 'prop-db-1',
+      target_title: 'Listing under review',
+      reason_code: 'scam_fraud',
+      details: 'The listing requested an advance payment before a viewing.',
+      priority: 'urgent',
+      status: 'pending',
+      created_at: '2026-10-27T00:00:00Z',
+    });
+
+    expect(report.targetId).toBe('prop-db-1');
+    expect(report.targetTitle).toBe('Listing under review');
+    expect(report.priority).toBe('urgent');
   });
 
   it('enforces Family Stay business rules when creating listings via marketplace service', async () => {

@@ -253,7 +253,7 @@ export async function fetchPropertiesFromSupabase(
 
   try {
     let query = supabase
-      .from('properties')
+      .from('public_properties')
       .select('*', { count: 'exact' })
       .eq('status', 'active');
 
@@ -284,6 +284,29 @@ export async function fetchPropertiesFromSupabase(
 
     if (filters?.locality && filters.locality.trim() !== '' && filters.locality !== 'All Localities') {
       query = query.ilike('locality', `%${filters.locality.trim()}%`);
+    }
+
+    if (filters?.furnishing && filters.furnishing !== 'all') {
+      query = query.eq('furnishing', filters.furnishing);
+    }
+
+    if (filters?.providerType && filters.providerType !== 'all') {
+      query = query.eq('provider_type', filters.providerType);
+    }
+
+    if (filters?.genderPreference && filters.genderPreference !== 'all') {
+      query = query.in('gender_preference', [filters.genderPreference, 'any']);
+    }
+
+    if (filters?.searchQuery && filters.searchQuery.trim() !== '') {
+      const search = filters.searchQuery.trim().slice(0, 80).replace(/[(),.*%_]/g, ' ');
+      query = query.or([
+        `title.ilike.%${search}%`,
+        `locality.ilike.%${search}%`,
+        `city.ilike.%${search}%`,
+        `state.ilike.%${search}%`,
+        `description.ilike.%${search}%`,
+      ].join(','));
     }
 
     if (filters?.mealsOffered && filters.mealsOffered !== 'any') {
@@ -335,7 +358,24 @@ export async function createPropertyInSupabase(
       }
 
       if (data) {
-        return { success: true, property: mapSupabasePropertyToApp(data) };
+        const imageUrls = (property.images || []).filter(Boolean);
+        if (imageUrls.length > 0) {
+          const { error: photoError } = await supabase
+            .from('property_photos')
+            .insert(imageUrls.map((photoUrl, index) => ({
+              property_id: data.id,
+              photo_url: photoUrl,
+              sort_order: index,
+              is_primary: index === 0,
+            })));
+
+          if (photoError) {
+            await supabase.from('properties').delete().eq('id', data.id).eq('owner_id', hostUser.id);
+            return { success: false, errors: [`Listing photo persistence failed: ${photoError.message}`] };
+          }
+        }
+
+        return { success: true, property: mapSupabasePropertyToApp({ ...data, images: imageUrls }) };
       }
     } catch (err) {
       return { success: false, errors: [err instanceof Error ? err.message : 'Database insertion error'] };
@@ -367,7 +407,7 @@ export async function fetchPropertyByIdFromSupabase(
   if (isLiveBackendConfigured && supabase) {
     try {
       const { data, error } = await supabase
-        .from('properties')
+        .from('public_properties')
         .select('*')
         .eq('id', id)
         .single();
@@ -402,7 +442,10 @@ export async function updatePropertyInSupabase(
       if (updates.deposit !== undefined) dbRow.deposit_amount = updates.deposit;
       if (updates.maintenance !== undefined) dbRow.maintenance_charge = updates.maintenance;
       if (updates.furnishing !== undefined) dbRow.furnishing = updates.furnishing;
-      if (updates.images !== undefined) dbRow.images = updates.images;
+      if (updates.coordinates !== undefined) {
+        dbRow.latitude = updates.coordinates?.lat ?? null;
+        dbRow.longitude = updates.coordinates?.lng ?? null;
+      }
       if (updates.status !== undefined) dbRow.status = updates.status;
 
       const { data, error } = await supabase
@@ -618,26 +661,13 @@ export async function fetchFlatmatesFromSupabase(): Promise<{
         return { success: true, flatmates: viewData.map(mapSupabaseFlatmateToApp) };
       }
 
-      // Fallback query directly on flatmate_profiles table joined with profiles
-      const { data, error } = await supabase
-        .from('flatmate_profiles')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            full_name,
-            avatar_url,
-            role,
-            id_verified,
-            phone_verified
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error && viewError) return { success: false, flatmates: [], error: error.message };
-      if (data && data.length > 0) {
-        return { success: true, flatmates: data.map(mapSupabaseFlatmateToApp) };
+      if (!viewError) {
+        return { success: true, flatmates: [] };
       }
+
+      // Never fall back to the private base table: its least-privilege RLS is
+      // intentionally incompatible with public discovery.
+      return { success: false, flatmates: [], error: viewError?.message || 'Public flatmate discovery is unavailable.' };
     } catch (err) {
       return { success: false, flatmates: [], error: err instanceof Error ? err.message : 'Failed to fetch flatmates' };
     }

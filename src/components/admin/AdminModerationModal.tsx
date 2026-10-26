@@ -84,7 +84,7 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
       showToast('Action blocked: Verified staff credentials required.');
       return;
     }
-    updatePropertyStatus(id, 'pending_review');
+    updatePropertyStatus(id, 'paused');
   };
 
   const handleMarkRented = (id: string) => {

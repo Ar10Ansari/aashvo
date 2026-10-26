@@ -195,7 +195,7 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
     setStep(prev => prev + 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (listingIntent === 'family_stays') {
@@ -217,7 +217,7 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
     const finalCategory: 'family_stays' | 'flats_rooms' = listingIntent === 'family_stays' ? 'family_stays' : 'flats_rooms';
     const finalRoomType: RoomType = listingIntent === 'entire_flats' ? 'entire_flat' : roomType;
 
-    addProperty({
+    await addProperty({
       title,
       locality,
       city,

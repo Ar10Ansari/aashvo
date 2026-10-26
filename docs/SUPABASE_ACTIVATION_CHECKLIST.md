@@ -27,6 +27,7 @@ Execute the following 9 migration scripts sequentially in the Supabase Dashboard
 | **07** | `supabase/migrations/20261024000000_rental_reputation_and_disputes.sql` | `tenancy_reviews`, `rental_disputes` | Two-sided verified reviews with `enforce_review_eligibility()` trigger; mediation ledger with unique dispute numbering and evidence URLs. |
 | **08** | `supabase/migrations/20261025000000_rental_storage_counterparty_access.sql` | Storage RLS policies on `storage.objects` for `rental-documents` | Scoped counterparty SELECT and INSERT access allowing tenant and landlord to share document proofs within agreement folder. |
 | **09** | `supabase/migrations/20261026000000_flatmate_profiles_rls_and_anti_forgery.sql` | `public.flatmate_profiles` least-privilege RLS, `public.public_flatmates` view & anti-forgery trigger | Revokes base-table SELECT from `anon`; base-table SELECT strictly owner/admin; public discovery exclusively through `public.public_flatmates` view (zero phone/email exposure; internal `user_id` shielded); `trg_prevent_flatmate_verification_forgery` blocks client forgery of verification badge; inquiry target constraint. |
+| **10** | `supabase/migrations/20261027100000_backend_contract_reconciliation.sql` | Sanitized `public.public_properties` view, property photo aggregation, support attachments, safety-report target metadata, guest support lookup RPC | Aligns client payloads with relational tables; removes public owner IDs from discovery; preserves private support and evidence boundaries. |
 
 ---
 
@@ -35,7 +36,7 @@ Execute the following 9 migration scripts sequentially in the Supabase Dashboard
 - **Static SQL Syntax Check:** Completed across all 9 migration files. All PostgreSQL statements use idempotent clauses (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS`).
 - **Trigger Integrity Validation:** `handle_new_user()` handles metadata extraction cleanly (`full_name`, `avatar_url`, `phone_number`). `trg_prevent_verification_forgery` and `trg_prevent_flatmate_verification_forgery` prevent privilege escalation by checking `is_admin()`.
 - **Database RLS Authorization Matrix:** Validated across 204 automated Vitest integration tests in `authorizationPolicies.test.ts`, `gotrueTrustBoundaryE2E.test.ts`, `marketplaceBackendE2E.test.ts`, and `rentalTrustE2E.test.ts`.
-- **Local Database Environment:** Verified against active local Supabase PostgreSQL (`supabase_db_AASHVO`). All 9 migrations applied and confirmed via `supabase_migrations.schema_migrations`. Remote database remains unmutated per release protocol.
+- **Local Database Environment:** The repository contains 10 ordered migrations. Hosted migration status must be re-verified before execution; remote database state is not inferred from repository files.
 
 ---
 

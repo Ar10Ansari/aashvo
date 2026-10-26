@@ -43,7 +43,7 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
     return calculateFlatmateCompatibility(userPreferences, flatmate);
   }, [userPreferences, flatmate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!senderName || !senderPhone) {
       showToast('Please provide your name and phone number.');
@@ -51,8 +51,8 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      submitConnectRequest({
+    try {
+      const result = await submitConnectRequest({
         targetId: flatmate.id,
         targetType: 'flatmate',
         senderName,
@@ -61,9 +61,10 @@ export const FlatmateDetailModal: React.FC<FlatmateDetailModalProps> = ({ flatma
         moveInDate: 'Flexible',
         message,
       });
+      if (result.success) setConnectSent(true);
+    } finally {
       setIsSubmitting(false);
-      setConnectSent(true);
-    }, 600);
+    }
   };
 
   return (

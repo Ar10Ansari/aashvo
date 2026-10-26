@@ -23,6 +23,7 @@ import {
   dispatchSupportNotification,
   createSupportTicketInSupabase,
   createSafetyReportInSupabase,
+  fetchSupportTicketsFromSupabase,
 } from '../services/supportService';
 import { supabase, isLiveBackendConfigured } from '../services/supabase';
 import {
@@ -77,11 +78,11 @@ interface AppContextType {
   resolveReport: (reportId: string) => void;
   // Enhanced Safety Reports
   safetyReports: SafetyReport[];
-  submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status' | 'reasonLabel' | 'priority'>) => {
+  submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status' | 'reasonLabel' | 'priority'>) => Promise<{
     success: boolean;
     message: string;
     reportId?: string;
-  };
+  }>;
   resolveSafetyReport: (reportId: string, action: 'resolved' | 'dismissed', adminNotes?: string) => void;
   // Support Tickets System
   supportTickets: SupportTicket[];
@@ -90,7 +91,7 @@ interface AppContextType {
       priority?: TicketPriority;
     },
     initialMessage?: string
-  ) => SupportTicket;
+  ) => Promise<SupportTicket>;
   addTicketMessage: (
     ticketId: string,
     message: string,
@@ -101,9 +102,9 @@ interface AppContextType {
   updateTicketPriority: (ticketId: string, newPriority: TicketPriority) => void;
   assignTicket: (ticketId: string, adminId: string, adminName: string) => void;
   updatePropertyStatus: (id: string, status: ListingStatus) => void;
-  addProperty: (property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => void;
+  addProperty: (property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => Promise<void>;
   connectRequests: ConnectRequest[];
-  submitConnectRequest: (req: Omit<ConnectRequest, 'id' | 'createdAt'>) => void;
+  submitConnectRequest: (req: Omit<ConnectRequest, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
   toast: string | null;
   showToast: (msg: string) => void;
 }
@@ -124,6 +125,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load saved state or default
   const [properties, setProperties] = useState<Property[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_properties');
     if (saved) {
       try {
@@ -139,11 +141,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [flatmates, setFlatmates] = useState<Flatmate[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_flatmates');
     return saved ? JSON.parse(saved) : SEED_FLATMATES;
   });
 
   const [reports, setReports] = useState<ListingReport[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_reports');
     return saved ? JSON.parse(saved) : [
       {
@@ -181,6 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 1. Support Tickets State (persisted to localStorage)
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_support_tickets');
     if (saved) {
       try {
@@ -316,6 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 2. Safety Reports State
   const [safetyReports, setSafetyReports] = useState<SafetyReport[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_safety_reports');
     if (saved) {
       try {
@@ -362,20 +368,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Synchronize support and safety states to localStorage
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_support_tickets', JSON.stringify(supportTickets));
   }, [supportTickets]);
 
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_safety_reports', JSON.stringify(safetyReports));
   }, [safetyReports]);
 
   // Support Ticket Handlers
-  const createSupportTicket = (
+  const createSupportTicket = async (
     ticketData: Omit<SupportTicket, 'id' | 'ticketNumber' | 'createdAt' | 'updatedAt' | 'messages' | 'auditEvents' | 'status' | 'priority'> & {
       priority?: TicketPriority;
     },
     initialMessage?: string
-  ): SupportTicket => {
+  ): Promise<SupportTicket> => {
     const ticketNumber = generateTicketNumber();
     const now = new Date().toISOString();
     const priority = ticketData.priority || determineTicketPriority(ticketData.category, ticketData.subject, ticketData.description);
@@ -401,7 +409,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ticketNumber,
       priority,
       status: 'open',
-      attachments: [],
+      attachments: ticketData.attachments || [],
       createdAt: now,
       updatedAt: now,
       messages: initialThreadMessage,
@@ -418,13 +426,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ],
     };
 
-    setSupportTickets(prev => [newTicket, ...prev]);
-
-    if (isLiveBackendConfigured && supabase) {
-      createSupportTicketInSupabase(ticketData, initialMessage).catch(err => {
-        console.warn('[Supabase Support Sync Notice]', err);
+    if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
+      const result = await createSupportTicketInSupabase({ ...ticketData, priority }, initialMessage);
+      if (!result.success || !result.ticket) {
+        throw new Error(result.error || 'Support ticket could not be persisted.');
+      }
+      setSupportTickets(prev => [result.ticket!, ...prev]);
+      dispatchSupportNotification('ticket_created', {
+        ticketNumber: result.ticket.ticketNumber,
+        recipientEmail: result.ticket.userEmail,
+        subject: result.ticket.subject,
       });
+      showToast(`Support ticket ${result.ticket.ticketNumber} created! Our team will respond shortly.`);
+      return result.ticket;
     }
+
+    setSupportTickets(prev => [newTicket, ...prev]);
 
     dispatchSupportNotification('ticket_created', {
       ticketNumber,
@@ -634,9 +651,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Safety Reports Handlers
-  const submitSafetyReport = (
+  const submitSafetyReport = async (
     reportData: Omit<SafetyReport, 'id' | 'createdAt' | 'status' | 'reasonLabel' | 'priority'>
-  ): { success: boolean; message: string; reportId?: string } => {
+  ): Promise<{ success: boolean; message: string; reportId?: string }> => {
     const reporterIdentifier = reportData.reporterId || reportData.reporterEmail || '';
 
     // Check duplicate submissions within 24h
@@ -659,13 +676,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    setSafetyReports(prev => [newReport, ...prev]);
+    if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
+      const result = await createSafetyReportInSupabase(reportData);
+      if (!result.success) {
+        return {
+          success: false,
+          message: result.error || 'Report could not be persisted. Please try again.',
+        };
+      }
 
-    if (isLiveBackendConfigured && supabase) {
-      createSafetyReportInSupabase(reportData).catch(err => {
-        console.warn('[Supabase Safety Report Sync Notice]', err);
-      });
+      const persistedReport = { ...newReport, id: result.reportId || reportId };
+      setSafetyReports(prev => [persistedReport, ...prev]);
+      if (reportData.targetType === 'listing') {
+        submitReport(reportData.targetId, reportData.targetTitle, label, reportData.details);
+      }
+      showToast('Report submitted for confidential safety review. Thank you for protecting Aashvo.');
+      return {
+        success: true,
+        message: 'Report received. Our safety team will review this in accordance with community guidelines.',
+        reportId: persistedReport.id,
+      };
     }
+
+    setSafetyReports(prev => [newReport, ...prev]);
 
     // Also maintain legacy reports for backward compatibility
     if (reportData.targetType === 'listing') {
@@ -719,6 +752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Authenticated user state (defaults to null for unauthenticated visitors)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (isLiveBackendConfigured) return null;
     const saved = localStorage.getItem('aashvo_current_user');
     if (saved) {
       try {
@@ -735,22 +769,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync state to localStorage
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_properties', JSON.stringify(properties));
   }, [properties]);
 
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_reports', JSON.stringify(reports));
   }, [reports]);
 
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_connect_requests', JSON.stringify(connectRequests));
   }, [connectRequests]);
 
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     localStorage.setItem('aashvo_flatmates', JSON.stringify(flatmates));
   }, [flatmates]);
 
   useEffect(() => {
+    if (isLiveBackendConfigured) return;
     if (currentUser) {
       localStorage.setItem('aashvo_current_user', JSON.stringify(currentUser));
     } else {
@@ -762,22 +801,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (isLiveBackendConfigured && supabase) {
       fetchPropertiesFromSupabase().then(res => {
-        if (res.success && res.properties && res.properties.length > 0) {
-          setProperties(res.properties);
-        }
+        setProperties(res.success ? (res.properties || []) : []);
       }).catch(err => {
         console.warn('[Supabase Property Hydration Notice]', err);
+        setProperties([]);
       });
 
       fetchFlatmatesFromSupabase().then(res => {
-        if (res.success && res.flatmates && res.flatmates.length > 0) {
-          setFlatmates(res.flatmates);
-        }
+        setFlatmates(res.success ? res.flatmates : []);
       }).catch(err => {
         console.warn('[Supabase Flatmate Hydration Notice]', err);
+        setFlatmates([]);
       });
     }
   }, []);
+
+  // Hydrate only the authenticated user's support tickets from the backend.
+  useEffect(() => {
+    if (!isLiveBackendConfigured || !supabase || !currentUser || currentUser.isDemo) return;
+
+    fetchSupportTicketsFromSupabase(currentUser.email, currentUser.id).then(res => {
+      if (res.success) setSupportTickets(res.tickets || []);
+    }).catch(err => {
+      console.warn('[Supabase Support Hydration Notice]', err);
+    });
+  }, [currentUser]);
 
   // Check for URL OAuth callbacks/errors and password recovery hashes on mount
   useEffect(() => {
@@ -957,63 +1005,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addProperty = (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => {
+  const addProperty = async (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>): Promise<void> => {
     const newProp: Property = {
       ...newPropData,
       id: `prop-${Date.now()}`,
       status: 'pending_review', // Default to pending review for safety
       lastVerifiedDate: new Date().toISOString(),
     };
-    setProperties(prev => [newProp, ...prev]);
-    setIsListPropertyOpen(false);
-
     if (isLiveBackendConfigured && supabase && currentUser && !currentUser.isDemo) {
-      createPropertyInSupabase(newPropData, currentUser).then(res => {
-        if (res.success && res.property) {
-          // Update local property with persisted database ID and fields
-          setProperties(prev => prev.map(p => (p.id === newProp.id ? res.property! : p)));
-        }
-      }).catch(err => {
-        console.warn('[Supabase Listing Creation Notice]', err);
-      });
+      const res = await createPropertyInSupabase(newPropData, currentUser);
+      if (!res.success || !res.property) {
+        showToast(`Listing submission failed: ${res.errors?.join(' ') || 'Please try again.'}`);
+        return;
+      }
+      setProperties(prev => [res.property!, ...prev]);
+      setIsListPropertyOpen(false);
       showToast('🎉 Property submitted to moderation queue for verification!');
     } else {
+      setProperties(prev => [newProp, ...prev]);
+      setIsListPropertyOpen(false);
       showToast('Listing saved to local draft preview (Cloud synchronization offline in prototype mode).');
     }
   };
 
-  const submitConnectRequest = (reqData: Omit<ConnectRequest, 'id' | 'createdAt'>) => {
+  const submitConnectRequest = async (reqData: Omit<ConnectRequest, 'id' | 'createdAt'>): Promise<{ success: boolean; error?: string }> => {
     const newReq: ConnectRequest = {
       ...reqData,
       id: `req-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
-    setConnectRequests(prev => [newReq, ...prev]);
-
-    if (isLiveBackendConfigured && supabase) {
+    if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
+      if (!currentUser) {
+        const error = 'Please sign in before sending an inquiry.';
+        showToast(error);
+        return { success: false, error };
+      }
       const isFlatmate = reqData.targetType === 'flatmate';
-      submitInquiryInSupabase({
+      const res = await submitInquiryInSupabase({
         listingId: isFlatmate ? undefined : reqData.targetId,
         targetFlatmateId: isFlatmate ? reqData.targetId : undefined,
-        senderId: currentUser?.id || '00000000-0000-0000-0000-000000000000',
+        senderId: currentUser.id,
         senderName: reqData.senderName,
         senderEmail: reqData.senderEmail,
         senderPhone: reqData.senderPhone,
         message: reqData.message,
         moveInDate: reqData.moveInDate,
-      }).then(res => {
-        if (res.success) {
-          showToast(isFlatmate ? 'Direct connection request dispatched to flatmate!' : 'Direct inquiry dispatched to host!');
-        } else {
-          showToast(`Inquiry dispatch failed: ${res.error || 'Please complete verification before sending inquiries'}`);
-        }
-      }).catch(err => {
-        console.warn('[Supabase Inquiry Submission Notice]', err);
-        showToast('Inquiry submission failed. Please try again.');
       });
-    } else {
-      showToast('Direct inquiry recorded in local preview (Live notifications activate upon Supabase configuration).');
+      if (!res.success) {
+        const error = res.error || 'Please complete verification before sending inquiries.';
+        showToast(`Inquiry dispatch failed: ${error}`);
+        return { success: false, error };
+      }
+      setConnectRequests(prev => [newReq, ...prev]);
+      showToast(isFlatmate ? 'Direct connection request dispatched to flatmate!' : 'Direct inquiry dispatched to host!');
+      return { success: true };
     }
+
+    setConnectRequests(prev => [newReq, ...prev]);
+    showToast('Direct inquiry recorded in local preview (Live notifications activate upon Supabase configuration).');
+    return { success: true };
   };
 
   return (

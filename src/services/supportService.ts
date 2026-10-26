@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { supabase, isLiveBackendConfigured, mapSupabaseTicketToApp } from './supabase';
 import { isTrustedAdminSession } from './authorizationService';
+import { uploadSupportAttachment } from './storageService';
 
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   'image/jpeg',
@@ -339,15 +340,15 @@ export function dispatchSupportNotification(
 ): { dispatched: boolean; timestamp: string; event: string; recipient: string } {
   const timestamp = new Date().toISOString();
 
-  // In production, this invokes Resend/SMTP or WhatsApp Cloud Webhooks
-  // e.g. await fetch('/api/notifications/support', { method: 'POST', body: JSON.stringify(payload) });
+  // Provider delivery is intentionally not reported as successful until a
+  // server-side Resend/SMTP/WhatsApp integration is configured.
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
     // Intentionally avoid logging sensitive OTPs or private contents
     console.debug(`[Aashvo Support Notification] ${event} for ${payload.ticketNumber} -> ${payload.recipientEmail}`);
   }
 
   return {
-    dispatched: true,
+    dispatched: false,
     timestamp,
     event,
     recipient: payload.recipientEmail,
@@ -373,6 +374,7 @@ export async function createSupportTicketInSupabase(
     referenceListingId?: string;
     referenceUserId?: string;
     priority?: TicketPriority;
+    attachments?: TicketAttachment[];
   },
   initialMessage?: string
 ): Promise<{ success: boolean; ticket?: SupportTicket; error?: string }> {
@@ -382,6 +384,34 @@ export async function createSupportTicketInSupabase(
 
   if (isLiveBackendConfigured && supabase) {
     try {
+      const storedAttachments: TicketAttachment[] = [];
+      if (ticketData.attachments && ticketData.attachments.length > 0) {
+        if (!ticketData.userId) {
+          return { success: false, error: 'Please sign in before uploading support evidence.' };
+        }
+
+        for (const attachment of ticketData.attachments) {
+          if (!attachment.url || !attachment.url.startsWith('data:')) {
+            return { success: false, error: `Attachment "${attachment.name}" is missing upload data.` };
+          }
+
+          const response = await fetch(attachment.url);
+          const blob = await response.blob();
+          const uploaded = await uploadSupportAttachment(blob, ticketData.userId, attachment.name, attachment.type);
+          if (!uploaded.success || !uploaded.path) {
+            return { success: false, error: uploaded.error || `Failed to upload ${attachment.name}.` };
+          }
+
+          storedAttachments.push({
+            id: attachment.id,
+            name: attachment.name,
+            size: attachment.size,
+            type: attachment.type,
+            url: uploaded.path,
+          });
+        }
+      }
+
       const { data, error } = await supabase
         .from('support_tickets')
         .insert({
@@ -396,6 +426,7 @@ export async function createSupportTicketInSupabase(
           reference_listing_id: ticketData.referenceListingId || null,
           reference_user_id: ticketData.referenceUserId || null,
           priority,
+          attachments: storedAttachments,
           status: 'open',
           created_at: now,
           updated_at: now,
@@ -466,7 +497,7 @@ export async function createSupportTicketInSupabase(
     ...ticketData,
     priority,
     status: 'open',
-    attachments: [],
+    attachments: ticketData.attachments || [],
     createdAt: now,
     updatedAt: now,
     messages: initialMessage ? [
@@ -485,6 +516,44 @@ export async function createSupportTicketInSupabase(
   };
 
   return { success: true, ticket: mockTicket };
+}
+
+/** Secure guest lookup backed by the database RPC requiring ticket + email. */
+export async function fetchGuestSupportTicketFromSupabase(
+  ticketNumber: string,
+  userEmail: string
+): Promise<{ success: boolean; ticket?: SupportTicket; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: 'Live backend unconfigured' };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('lookup_support_ticket', {
+      p_ticket_number: ticketNumber.trim().toUpperCase(),
+      p_user_email: userEmail.trim().toLowerCase(),
+    });
+
+    if (error) return { success: false, error: error.message };
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return { success: false, error: 'No matching support ticket found.' };
+
+    const ticket = mapSupabaseTicketToApp(row);
+    ticket.messages = Array.isArray(row.messages)
+      ? row.messages.map((message: any) => ({
+          id: message.id,
+          ticketId: message.ticket_id,
+          senderId: message.sender_id,
+          senderName: message.sender_name,
+          senderRole: message.sender_role,
+          message: message.message,
+          isInternal: false,
+          createdAt: message.created_at,
+        }))
+      : [];
+    return { success: true, ticket };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Support ticket lookup failed' };
+  }
 }
 
 /**
@@ -547,16 +616,18 @@ export async function createSafetyReportInSupabase(
 
   if (isLiveBackendConfigured && supabase) {
     try {
-      const { data, error } = await supabase
-        .from('safety_reports')
-        .insert({
-          reporter_id: reportData.reporterId || null,
-          reporter_email: reportData.reporterEmail || null,
-          target_type: reportData.targetType,
-          target_id: reportData.targetId,
-          target_title: reportData.targetTitle,
-          reason_code: reportData.reasonCode,
-          details: reportData.details.trim(),
+        const { data, error } = await supabase
+          .from('safety_reports')
+          .insert({
+            reporter_id: reportData.reporterId || null,
+            reporter_email: reportData.reporterEmail || null,
+            target_type: reportData.targetType,
+            reported_property_id: reportData.targetType === 'listing' ? reportData.targetId : null,
+            reported_flatmate_id: reportData.targetType === 'flatmate' ? reportData.targetId : null,
+            reported_user_id: reportData.targetType === 'user' ? reportData.targetId : null,
+            target_title: reportData.targetTitle,
+            reason_code: reportData.reasonCode,
+            details: reportData.details.trim(),
           evidence_url: reportData.evidenceUrl || null,
           priority,
           status: 'pending',
