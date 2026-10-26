@@ -98,3 +98,7 @@ Thumbs.db
 # Supabase local CLI caches and temporary secrets
 supabase/.branches/
 supabase/.temp/
+supabase/*.backup*
+
+# Editor and agent configurations
+opencode.jsonc
