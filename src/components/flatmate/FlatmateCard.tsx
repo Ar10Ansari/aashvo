@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Flatmate } from '../../types';
 import { formatINR } from '../../utils/formatters';
 import { calculateFlatmateCompatibility } from '../../services/marketplaceService';
-import { MapPin, MessageCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { MapPin, MessageCircle, CheckCircle2, Sparkles, Bookmark } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { savedService } from '../../services/savedService';
 
 interface FlatmateCardProps {
   flatmate: Flatmate;
@@ -10,6 +12,38 @@ interface FlatmateCardProps {
 }
 
 export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }) => {
+  const { currentUser, showToast } = useApp();
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      savedService
+        .checkSaved('flatmate_profile', flatmate.id)
+        .then((res) => setIsSaved(res.isSaved))
+        .catch(() => {});
+    }
+  }, [currentUser, flatmate.id]);
+
+  const handleToggleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      if (showToast) showToast('Please sign in to save flatmates.');
+      return;
+    }
+    try {
+      if (isSaved) {
+        await savedService.unsaveItem('flatmate_profile', flatmate.id);
+        setIsSaved(false);
+        if (showToast) showToast('Removed from saved.');
+      } else {
+        await savedService.saveItem('flatmate_profile', flatmate.id);
+        setIsSaved(true);
+        if (showToast) showToast('Saved flatmate to shortlist!');
+      }
+    } catch {
+      setIsSaved(!isSaved);
+    }
+  };
   const userPreferences: Partial<Flatmate> = useMemo(() => {
     const saved = localStorage.getItem('aashvo_flatmate_preferences');
     if (saved) {
@@ -76,17 +110,31 @@ export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }
           </div>
         </div>
 
-        {/* Badges: Has Room + Compatibility Score */}
+        {/* Badges: Has Room + Compatibility Score + Bookmark */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span
-            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border shadow-xs ${
-              flatmate.hasRoom
-                ? 'bg-forest-50 text-forest-700 border-forest-200'
-                : 'bg-sand-100 text-charcoal-800 border-sand-300'
-            }`}
-          >
-            {flatmate.hasRoom ? 'Has Room' : 'Looking to Team Up'}
-          </span>
+          <div className="flex items-center space-x-1.5">
+            <span
+              className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border shadow-xs ${
+                flatmate.hasRoom
+                  ? 'bg-forest-50 text-forest-700 border-forest-200'
+                  : 'bg-sand-100 text-charcoal-800 border-sand-300'
+              }`}
+            >
+              {flatmate.hasRoom ? 'Has Room' : 'Looking to Team Up'}
+            </span>
+            <button
+              onClick={handleToggleSave}
+              className={`p-1 rounded-full border shadow-xs transition-all ${
+                isSaved
+                  ? 'bg-forest-800 text-sand-300 border-forest-700'
+                  : 'bg-white text-charcoal-600 hover:text-charcoal-900 border-charcoal-200'
+              }`}
+              title={isSaved ? 'Remove from saved' : 'Save flatmate'}
+              aria-label={isSaved ? 'Remove from saved' : 'Save flatmate'}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
+            </button>
+          </div>
           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-forest-100/80 text-forest-800 border border-forest-200 shadow-xs">
             <Sparkles className="w-2.5 h-2.5 text-forest-600" />
             <span>{compatibility.score}% Match</span>

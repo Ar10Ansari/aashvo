@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Property } from '../../types';
 import { formatINR, getFreshnessInfo, getProviderBadge, formatRoomType } from '../../utils/formatters';
-import { MapPin, ArrowUpRight } from 'lucide-react';
+import { MapPin, ArrowUpRight, Bookmark } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { savedService } from '../../services/savedService';
 
 interface PropertyCardProps {
   property: Property;
@@ -9,8 +11,42 @@ interface PropertyCardProps {
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect }) => {
+  const { currentUser, showToast } = useApp();
+  const [isSaved, setIsSaved] = useState(false);
   const freshness = getFreshnessInfo(property.lastVerifiedDate);
   const provider = getProviderBadge(property.providerType, property.brokerageFee);
+
+  useEffect(() => {
+    if (currentUser) {
+      const type = property.category === 'family_stays' ? 'family_stay' : 'property';
+      savedService
+        .checkSaved(type, property.id)
+        .then((res) => setIsSaved(res.isSaved))
+        .catch(() => {});
+    }
+  }, [currentUser, property.id, property.category]);
+
+  const handleToggleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      if (showToast) showToast('Please sign in to save listings.');
+      return;
+    }
+    const targetType = property.category === 'family_stays' ? 'family_stay' : 'property';
+    try {
+      if (isSaved) {
+        await savedService.unsaveItem(targetType, property.id);
+        setIsSaved(false);
+        if (showToast) showToast('Removed from saved.');
+      } else {
+        await savedService.saveItem(targetType, property.id);
+        setIsSaved(true);
+        if (showToast) showToast('Saved to shortlist!');
+      }
+    } catch {
+      setIsSaved(!isSaved);
+    }
+  };
 
   return (
     <article
@@ -47,16 +83,32 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect }
             <span>{freshness.label}</span>
           </span>
 
-          {/* Provider Tag or Family Stay Tag */}
-          {property.category === 'family_stays' ? (
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sand-200/90 text-forest-900 border border-sand-400 backdrop-blur-md shadow-sm">
-              Resident Family
-            </span>
-          ) : (
-            <span className={`px-2.5 py-1 rounded-full text-[11px] border backdrop-blur-md shadow-sm ${provider.badgeStyle}`}>
-              {provider.label}
-            </span>
-          )}
+          <div className="flex items-center space-x-1.5 pointer-events-auto">
+            {/* Provider Tag or Family Stay Tag */}
+            {property.category === 'family_stays' ? (
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sand-200/90 text-forest-900 border border-sand-400 backdrop-blur-md shadow-sm">
+                Resident Family
+              </span>
+            ) : (
+              <span className={`px-2.5 py-1 rounded-full text-[11px] border backdrop-blur-md shadow-sm ${provider.badgeStyle}`}>
+                {provider.label}
+              </span>
+            )}
+
+            {/* Bookmark button */}
+            <button
+              onClick={handleToggleSave}
+              className={`p-1.5 rounded-full backdrop-blur-md border shadow-sm transition-all ${
+                isSaved
+                  ? 'bg-forest-800 text-sand-300 border-forest-700'
+                  : 'bg-white/85 hover:bg-white text-charcoal-700 border-white/60'
+              }`}
+              title={isSaved ? 'Remove from saved' : 'Save listing'}
+              aria-label={isSaved ? 'Remove from saved' : 'Save listing'}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {/* Bottom Floating Pills: Room Type & Meal Status */}

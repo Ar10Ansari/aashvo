@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Menu, X, PlusCircle, ShieldCheck, UserCheck, LogOut, ChevronDown, HelpCircle } from 'lucide-react';
+import {
+  Menu,
+  X,
+  PlusCircle,
+  ShieldCheck,
+  UserCheck,
+  LogOut,
+  ChevronDown,
+  HelpCircle,
+  Sparkles,
+  Calculator,
+  Bookmark,
+  Compass,
+  MessageSquare,
+  Calendar,
+} from 'lucide-react';
 import { isTrustedAdminSession } from '../../services/authorizationService';
+import { NotificationCenter } from '../notifications/NotificationCenter';
 
 export const Navbar: React.FC = () => {
   const {
@@ -12,6 +28,10 @@ export const Navbar: React.FC = () => {
     openAuthModal,
     setIsHelpOpen,
     setIsRentalTrustOpen,
+    openConnectModal,
+    openMyActivityModal,
+    setIsCalculatorOpen,
+    setIsSavedOpen,
     currentUser,
     logout,
   } = useApp();
@@ -38,98 +58,139 @@ export const Navbar: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-sand-400 group-hover:bg-sand-500 transition-colors inline-block" />
             </button>
 
-            {/* Desktop Navigation Links */}
+            {/* Desktop Navigation Links — 6 Core Sections */}
             <nav className="hidden lg:flex items-center space-x-1 text-xs xl:text-sm font-medium">
-              <button
-                onClick={() => {
-                  setActiveTab('flatmates');
-                  const el = document.getElementById('discovery-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`px-3 py-1.5 rounded-full transition-all ${
-                  activeTab === 'flatmates'
-                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
-                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
-                }`}
-              >
-                Flatmates
-              </button>
+              {/* 1. Explore */}
+              <div className="relative group">
+                <button
+                  onClick={() => {
+                    setActiveTab('places');
+                    const el = document.getElementById('discovery-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 ${
+                    activeTab === 'places' || activeTab === 'flatmates' || activeTab === 'family_stays' || activeTab === 'entire_flats'
+                      ? 'text-forest-800 bg-forest-50/80 font-semibold'
+                      : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-forest-700" />
+                  <span>Explore</span>
+                  <ChevronDown className="w-3 h-3 text-charcoal-400 group-hover:rotate-180 transition-transform" />
+                </button>
 
+                <div className="absolute left-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-charcoal-100 py-1.5 hidden group-hover:block z-50 animate-in fade-in duration-150">
+                  <button
+                    onClick={() => {
+                      setActiveTab('flatmates');
+                      const el = document.getElementById('discovery-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-ivory-100 ${
+                      activeTab === 'flatmates' ? 'text-forest-800 font-bold bg-forest-50/50' : 'text-charcoal-700'
+                    }`}
+                  >
+                    <span>Flatmates & Rooms</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('family_stays');
+                      const el = document.getElementById('discovery-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-ivory-100 ${
+                      activeTab === 'family_stays' ? 'text-forest-800 font-bold bg-forest-50/50' : 'text-charcoal-700'
+                    }`}
+                  >
+                    <span>Family Stays</span>
+                    <span className="text-[9px] bg-sand-200 text-forest-900 px-1 py-0.2 rounded font-bold">Meals</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('entire_flats');
+                      const el = document.getElementById('discovery-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-ivory-100 ${
+                      activeTab === 'entire_flats' ? 'text-forest-800 font-bold bg-forest-50/50' : 'text-charcoal-700'
+                    }`}
+                  >
+                    <span>Entire Flats</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Connect */}
               <button
-                onClick={() => {
-                  setActiveTab('family_stays');
-                  const el = document.getElementById('discovery-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 ${
-                  activeTab === 'family_stays'
-                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
-                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
-                }`}
+                onClick={() => openConnectModal('discover')}
+                className="px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 bg-forest-700/10 hover:bg-forest-700/20 text-forest-900 font-semibold border border-forest-600/30"
+                title="Aashvo Connect — Swipe & Mutual Matching"
               >
-                <span>Family Stays</span>
-                <span className="text-[10px] bg-sand-200/90 text-forest-900 font-bold px-1.5 py-0.2 rounded-full">
-                  Meals
+                <Sparkles className="w-3.5 h-3.5 text-sand-500" />
+                <span>Connect</span>
+                <span className="text-[9px] bg-forest-700 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                  MATCH
                 </span>
               </button>
 
+              {/* 3. Saved */}
               <button
-                onClick={() => {
-                  setActiveTab('entire_flats');
-                  const el = document.getElementById('discovery-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`px-3 py-1.5 rounded-full transition-all ${
-                  activeTab === 'entire_flats'
-                    ? 'text-forest-800 bg-forest-50/80 font-semibold'
-                    : 'text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60'
-                }`}
+                onClick={() => setIsSavedOpen(true)}
+                className="px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60"
+                title="Saved Listings & Shortlists"
               >
-                Entire Flats
+                <Bookmark className="w-3.5 h-3.5 text-forest-700" />
+                <span>Saved</span>
               </button>
 
+              {/* 4. Messages */}
+              <button
+                onClick={() => openConnectModal('matches')}
+                className="px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60"
+                title="Conversations & Match Messages"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
+                <span>Messages</span>
+              </button>
+
+              {/* 5. My Activity */}
+              <button
+                onClick={() => openMyActivityModal('visits')}
+                className="px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5 text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60"
+                title="Visits, Agreements, Move-In Checklists & Verifications"
+              >
+                <Calendar className="w-3.5 h-3.5 text-forest-700" />
+                <span>My Activity</span>
+              </button>
+
+              {/* Founders anchor link */}
               <button
                 onClick={() => {
                   const el = document.getElementById('our-founders');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="px-3 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all"
+                className="px-3 py-1.5 rounded-full text-charcoal-400 hover:text-charcoal-700 hover:bg-ivory-300/40 transition-all text-xs"
               >
                 Founders
-              </button>
-
-              <button
-                onClick={() => setIsListPropertyOpen(true)}
-                className="px-3 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
-              >
-                <span>List Property</span>
-                <span className="text-[11px] bg-forest-100 text-forest-700 font-semibold px-1.5 py-0.2 rounded-full ml-0.5">
-                  ₹0
-                </span>
-              </button>
-
-              <button
-                onClick={() => setIsHelpOpen(true)}
-                className="px-2.5 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
-                title="Help Centre & Safety FAQs"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-forest-700" />
-                <span>Help</span>
-              </button>
-
-              <button
-                onClick={() => setIsRentalTrustOpen(true)}
-                className="px-2.5 py-1.5 rounded-full text-charcoal-500 hover:text-charcoal-800 hover:bg-ivory-300/60 transition-all flex items-center space-x-1"
-                title="Rental Trust, Agreements & Ledger"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-forest-700" />
-                <span>Rental Trust</span>
               </button>
             </nav>
           </div>
 
           {/* Right Action Controls */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-3">
+            {/* Shortlisted Items Button */}
+            <button
+              onClick={() => setIsSavedOpen(true)}
+              className="p-2 rounded-full text-charcoal-600 hover:text-forest-800 hover:bg-ivory-300/70 transition-all focus:outline-none"
+              title="Saved Listings & Shortlists"
+              aria-label="View saved listings"
+            >
+              <Bookmark className="w-5 h-5 text-forest-800" />
+            </button>
+
+            {/* In-App Notifications Center */}
+            <NotificationCenter />
+
             {/* Admin Badge: Restricted to verified staff identity */}
             {isTrustedAdminSession(currentUser) && (
               <button
@@ -177,6 +238,50 @@ export const Navbar: React.FC = () => {
                     </div>
 
                     <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          openConnectModal('discover');
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-700 hover:bg-ivory-100 flex items-center space-x-2 font-medium"
+                      >
+                        <Sparkles className="w-4 h-4 text-forest-600" />
+                        <span>Aashvo Connect (Matches)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          openMyActivityModal('visits');
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-700 hover:bg-ivory-100 flex items-center space-x-2 font-medium"
+                      >
+                        <Calendar className="w-4 h-4 text-forest-600" />
+                        <span>My Activity (Visits & Tenancy)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          setIsSavedOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
+                      >
+                        <Bookmark className="w-4 h-4 text-forest-600" />
+                        <span>Saved Listings & Shortlists</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          setIsCalculatorOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
+                      >
+                        <Calculator className="w-4 h-4 text-forest-600" />
+                        <span>Rent & Utility Split Calculator</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
@@ -339,6 +444,63 @@ export const Navbar: React.FC = () => {
           </div>
 
           <div className="pt-2 border-t border-charcoal-200/40 space-y-2">
+            <button
+              onClick={() => {
+                openConnectModal('discover');
+                setMobileMenuOpen(false);
+              }}
+              className="w-full bg-forest-50 border border-forest-200 text-forest-900 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center space-x-2"
+            >
+              <Sparkles className="w-4 h-4 text-sand-500" />
+              <span>Aashvo Connect (Swipe & Matches)</span>
+            </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setIsSavedOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5"
+              >
+                <Bookmark className="w-4 h-4 text-forest-700" />
+                <span>Saved Listings</span>
+              </button>
+              <button
+                onClick={() => {
+                  openConnectModal('matches');
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5"
+              >
+                <MessageSquare className="w-4 h-4 text-forest-700" />
+                <span>Messages</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  openMyActivityModal('visits');
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5"
+              >
+                <Calendar className="w-4 h-4 text-forest-700" />
+                <span>My Activity</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsCalculatorOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-white border border-charcoal-200 text-charcoal-700 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5"
+              >
+                <Calculator className="w-4 h-4 text-forest-700" />
+                <span>Split Calculator</span>
+              </button>
+            </div>
+
             <button
               onClick={() => {
                 setIsListPropertyOpen(true);

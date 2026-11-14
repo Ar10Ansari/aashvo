@@ -11,8 +11,10 @@ import {
   Plus,
   Camera,
   Info,
-  AlertCircle
+  AlertCircle,
+  ClipboardCheck,
 } from 'lucide-react';
+import { MoveInChecklistModal } from './MoveInChecklistModal';
 import { User } from '../../types';
 import {
   TenancyAgreement,
@@ -67,6 +69,7 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Form states
+  const [showMoveInChecklist, setShowMoveInChecklist] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentCategory, setPaymentCategory] = useState<PaymentCategory>('rent');
@@ -762,13 +765,24 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
                         Timestamped room-by-room condition logs preventing deposit disputes at move-out.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setShowInspectionForm(!showInspectionForm)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-forest-800 hover:bg-forest-900 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
-                    >
-                      <Camera className="w-4 h-4" />
-                      Log Condition
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedAgreement && (
+                        <button
+                          onClick={() => setShowMoveInChecklist(true)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sand-200 hover:bg-sand-300 text-forest-900 rounded-xl text-xs font-semibold shadow-xs transition-colors"
+                        >
+                          <ClipboardCheck className="w-4 h-4 text-forest-800" />
+                          Move-In Checklist
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowInspectionForm(!showInspectionForm)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-forest-800 hover:bg-forest-900 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Log Condition
+                      </button>
+                    </div>
                   </div>
 
                   {showInspectionForm && (
@@ -1220,6 +1234,18 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
             Close Portal
           </button>
         </div>
+
+        {showMoveInChecklist && selectedAgreement && (
+          <MoveInChecklistModal
+            isOpen={showMoveInChecklist}
+            onClose={() => setShowMoveInChecklist(false)}
+            agreement={selectedAgreement}
+            onChecklistSaved={() => {
+              setShowMoveInChecklist(false);
+              loadAgreementSubData(selectedAgreement.id);
+            }}
+          />
+        )}
       </div>
     </div>
   );

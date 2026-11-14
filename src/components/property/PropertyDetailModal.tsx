@@ -1,8 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Property } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { formatINR, getFreshnessInfo, getProviderBadge } from '../../utils/formatters';
-import { X, MapPin, CheckCircle2, ShieldAlert, ChevronRight, Zap, ShieldCheck } from 'lucide-react';
+import {
+  X,
+  MapPin,
+  CheckCircle2,
+  ShieldAlert,
+  ChevronRight,
+  Zap,
+  ShieldCheck,
+  Bookmark,
+  Calendar,
+  Award,
+  Navigation,
+  Building2,
+  GraduationCap,
+  Train,
+} from 'lucide-react';
+import { savedService } from '../../services/savedService';
+import { getLandmarks } from '../../services/marketplaceService';
+import { ScheduleVisitModal } from '../visit/ScheduleVisitModal';
+import { PropertyVerificationModal } from './PropertyVerificationModal';
 
 interface PropertyDetailModalProps {
   property: Property;
@@ -13,6 +32,12 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
   const { currentUser, submitConnectRequest, setReportingTarget, showToast } = useApp();
   const [selectedImgIndex, setSelectedImgIndex] = useState(0);
 
+  // Feature Expansion Modals & Saved State
+  const [isSaved, setIsSaved] = useState(false);
+  const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState(false);
+  const [isVerificationOpen, setIsVerificationOpen] = useState(false);
+  const [landmarks, setLandmarks] = useState<any[]>([]);
+
   // Inquiry Form State
   const [senderName, setSenderName] = useState(currentUser?.name || '');
   const [senderPhone, setSenderPhone] = useState(currentUser?.phone || '');
@@ -21,6 +46,44 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
   const [message, setMessage] = useState('Hi, I am interested in viewing this property in person. Please confirm your availability.');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inquirySent, setInquirySent] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      const type = property.category === 'family_stays' ? 'family_stay' : 'property';
+      savedService
+        .checkSaved(type, property.id)
+        .then((res) => setIsSaved(res.isSaved))
+        .catch(() => {});
+    }
+  }, [currentUser, property.id, property.category]);
+
+  useEffect(() => {
+    // Fetch nearby verified landmarks for this city/coords
+    getLandmarks(property.city, property.coordinates?.lat, property.coordinates?.lng, 12)
+      .then((items) => setLandmarks(items))
+      .catch(() => setLandmarks([]));
+  }, [property.city, property.coordinates?.lat, property.coordinates?.lng]);
+
+  const handleToggleSave = async () => {
+    if (!currentUser) {
+      if (showToast) showToast('Please sign in to save listings.');
+      return;
+    }
+    const targetType = property.category === 'family_stays' ? 'family_stay' : 'property';
+    try {
+      if (isSaved) {
+        await savedService.unsaveItem(targetType, property.id);
+        setIsSaved(false);
+        if (showToast) showToast('Removed from saved.');
+      } else {
+        await savedService.saveItem(targetType, property.id);
+        setIsSaved(true);
+        if (showToast) showToast('Saved to shortlist!');
+      }
+    } catch {
+      setIsSaved(!isSaved);
+    }
+  };
 
 
 
@@ -78,15 +141,49 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
             <span className={`px-3 py-1 rounded-full text-xs border ${provider.badgeStyle}`}>
               {provider.label}
             </span>
+            {property.verificationStatus === 'verified' && (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <Award className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Verified Listing</span>
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 text-charcoal-400 hover:text-charcoal-800 rounded-full hover:bg-ivory-200 transition-colors"
-            aria-label="Close modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* Host Verification Trigger */}
+            {(currentUser?.role === 'owner' || currentUser?.role === 'broker' || currentUser?.id === property.ownerId) && (
+              <button
+                onClick={() => setIsVerificationOpen(true)}
+                className="text-xs font-semibold text-forest-800 hover:text-forest-900 bg-sand-200/80 hover:bg-sand-300 px-3 py-1.5 rounded-full transition-all flex items-center space-x-1"
+                title="Verify ownership documentation"
+              >
+                <Award className="w-3.5 h-3.5 text-forest-700" />
+                <span>Verify Property</span>
+              </button>
+            )}
+
+            {/* Bookmark button */}
+            <button
+              onClick={handleToggleSave}
+              className={`p-2 rounded-full border transition-all ${
+                isSaved
+                  ? 'bg-forest-800 text-sand-300 border-forest-700'
+                  : 'bg-white hover:bg-ivory-200 text-charcoal-600 border-charcoal-200'
+              }`}
+              title={isSaved ? 'Remove from saved' : 'Save listing'}
+              aria-label={isSaved ? 'Remove from saved' : 'Save listing'}
+            >
+              <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 text-charcoal-400 hover:text-charcoal-800 rounded-full hover:bg-ivory-200 transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Scrollable Body */}
@@ -266,6 +363,47 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
             </div>
           </div>
 
+          {/* Verified Nearby Landmarks & Transit Proximity (Feature 1) */}
+          {landmarks.length > 0 && (
+            <div className="bg-[#F5F3ED]/80 p-5 rounded-3xl border border-charcoal-200/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Navigation className="w-4 h-4 text-forest-700" />
+                  <h3 className="font-serif text-base font-bold text-forest-900">
+                    Verified Landmarks & Commute Proximity
+                  </h3>
+                </div>
+                <span className="text-[11px] font-semibold text-charcoal-500">
+                  Approx. straight-line distance
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {landmarks.slice(0, 6).map((lm, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white p-3 rounded-2xl border border-charcoal-200/50 shadow-xs flex items-center space-x-2.5 text-xs"
+                  >
+                    <div className="p-2 rounded-xl bg-forest-50 text-forest-800 flex-shrink-0">
+                      {lm.category === 'metro_station' ? (
+                        <Train className="w-4 h-4 text-emerald-700" />
+                      ) : lm.category === 'tech_park' ? (
+                        <Building2 className="w-4 h-4 text-blue-700" />
+                      ) : (
+                        <GraduationCap className="w-4 h-4 text-amber-700" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-charcoal-800 truncate">{lm.name}</p>
+                      <p className="text-[11px] text-charcoal-500 truncate">
+                        {lm.distanceKm !== undefined ? `${lm.distanceKm} km away` : lm.locality}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Contact / Schedule Visit Section */}
           <div className="bg-white p-6 sm:p-7 rounded-3xl border border-charcoal-200 shadow-sm">
             <h3 className="font-serif text-xl font-semibold text-charcoal-900 mb-2">
@@ -280,7 +418,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
                 <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
                 <h4 className="font-serif text-lg font-bold">Inquiry Sent Successfully!</h4>
                 <p className="text-xs text-emerald-700 mt-1">
-                  {property.providerName} has received your visit request and will coordinate with you via WhatsApp or phone.
+                  {property.providerName} has received your inquiry and will coordinate with you via WhatsApp or phone.
                 </p>
               </div>
             ) : (
@@ -335,20 +473,25 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-forest-600 hover:bg-forest-700 text-white font-semibold py-3 px-6 rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2"
-                >
-                  {isSubmitting ? (
-                    <span>Sending Inquiry...</span>
-                  ) : (
-                    <>
-                      <span>Schedule a Visit / Contact Owner</span>
-                      <ChevronRight className="w-4 h-4 text-sand-300" />
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsScheduleVisitOpen(true)}
+                    className="flex-1 bg-forest-800 hover:bg-forest-900 text-white font-semibold py-3 px-6 rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2"
+                  >
+                    <Calendar className="w-4 h-4 text-sand-300" />
+                    <span>Schedule In-Person Visit</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-white hover:bg-ivory-100 text-forest-900 border border-charcoal-200 font-semibold py-3 px-6 rounded-2xl shadow-sm transition-all flex items-center justify-center space-x-2"
+                  >
+                    {isSubmitting ? <span>Sending...</span> : <span>Send Direct Inquiry</span>}
+                    <ChevronRight className="w-4 h-4 text-charcoal-400" />
+                  </button>
+                </div>
               </form>
             )}
           </div>
@@ -376,6 +519,24 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
           </div>
         </div>
       </div>
+
+      {/* Property Viewing Schedule Modal */}
+      {isScheduleVisitOpen && (
+        <ScheduleVisitModal
+          isOpen={isScheduleVisitOpen}
+          onClose={() => setIsScheduleVisitOpen(false)}
+          property={property}
+        />
+      )}
+
+      {/* Property Owner Verification Modal */}
+      {isVerificationOpen && (
+        <PropertyVerificationModal
+          isOpen={isVerificationOpen}
+          onClose={() => setIsVerificationOpen(false)}
+          property={property}
+        />
+      )}
     </div>
   );
 };

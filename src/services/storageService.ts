@@ -11,6 +11,7 @@
  */
 
 import { supabase, isLiveBackendConfigured } from './supabase';
+import { apiClient } from './apiClient';
 
 export const STORAGE_BUCKETS = {
   PROPERTY_PHOTOS: 'property-photos',
@@ -303,4 +304,79 @@ export async function deletePropertyPhoto(path: string): Promise<{ success: bool
   }
 
   return { success: true };
+}
+
+/**
+ * Generates a time-limited signed URL for reading objects from private Storage buckets.
+ */
+export async function createSignedStorageUrl(
+  bucket: 'support-attachments' | 'rental-documents',
+  path: string,
+  expiresInSeconds: number = 300
+): Promise<{ success: boolean; signedUrl?: string; error?: string }> {
+  if (!path || !path.trim()) {
+    return { success: false, error: 'Storage path is required.' };
+  }
+
+  if (isLiveBackendConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(path, expiresInSeconds);
+
+      if (error) return { success: false, error: error.message };
+      if (!data?.signedUrl) return { success: false, error: 'Signed URL generation returned no URL.' };
+      return { success: true, signedUrl: data.signedUrl };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Signed URL failed' };
+    }
+  }
+
+  if (import.meta.env.PROD) {
+    return { success: false, error: 'Storage service is unconfigured in production.' };
+  }
+
+  return { success: true, signedUrl: `#local-preview/${bucket}/${path}` };
+}
+
+/**
+ * Uploads media assets via the independent NestJS MediaModule presigned URLs.
+ * Public buckets (property-photos, user-avatars) route to Cloudflare R2.
+ * Private documents (rental-documents, support-attachments) route to encrypted AWS S3 Mumbai.
+ */
+export async function uploadMediaWithBackend(
+  file: File,
+  purpose: 'property-photos' | 'user-avatars' | 'rental-documents' | 'support-attachments'
+): Promise<StorageUploadResult> {
+  try {
+    const presigned = await apiClient.post<{
+      assetId: string;
+      uploadUrl: string;
+      publicUrl: string | null;
+      storageBucket: string;
+      storageKey: string;
+    }>('/media/presigned-upload', {
+      purpose,
+      mimeType: file.type,
+      fileName: file.name,
+      sizeBytes: file.size,
+    });
+
+    await fetch(presigned.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    });
+
+    await apiClient.post('/media/confirm', { assetId: presigned.assetId });
+
+    return {
+      success: true,
+      path: presigned.storageKey,
+      publicUrl: presigned.publicUrl || undefined,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Media upload failed';
+    return { success: false, error: message };
+  }
 }

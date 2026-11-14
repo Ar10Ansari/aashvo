@@ -1,0 +1,26 @@
+{
+  "name": "@aashvo/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared API contracts, canonical domain enums, standardized error codes, and generated OpenAPI 3.x specification for Aashvo.",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./openapi.json": "./openapi.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.2"
+  }
+}
+

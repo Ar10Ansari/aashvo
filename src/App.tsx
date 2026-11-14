@@ -14,6 +14,10 @@ import { AuthModal } from './components/auth/AuthModal';
 import { HelpCenterModal } from './components/help/HelpCenterModal';
 import { ReportModal } from './components/help/ReportModal';
 import { RentalTrustModal } from './components/rental/RentalTrustModal';
+import { ConnectModal } from './components/connect/ConnectModal';
+import { RentSplitCalculatorModal } from './components/calculator/RentSplitCalculatorModal';
+import { SavedListingsModal } from './components/saved/SavedListingsModal';
+import { MyActivityModal } from './components/activity/MyActivityModal';
 import { Toast } from './components/ui/Toast';
 
 const MainLayout: React.FC = () => {
@@ -32,6 +36,16 @@ const MainLayout: React.FC = () => {
     setIsHelpOpen,
     isRentalTrustOpen,
     setIsRentalTrustOpen,
+    isConnectOpen,
+    setIsConnectOpen,
+    connectInitialTab,
+    isMyActivityOpen,
+    setIsMyActivityOpen,
+    myActivityInitialTab,
+    isCalculatorOpen,
+    setIsCalculatorOpen,
+    isSavedOpen,
+    setIsSavedOpen,
     reportingTarget,
     setReportingTarget,
     currentUser,
@@ -111,6 +125,36 @@ const MainLayout: React.FC = () => {
           isOpen={isRentalTrustOpen}
           onClose={() => setIsRentalTrustOpen(false)}
           currentUser={currentUser}
+        />
+      )}
+
+      {isConnectOpen && (
+        <ConnectModal
+          isOpen={isConnectOpen}
+          onClose={() => setIsConnectOpen(false)}
+          initialTab={connectInitialTab}
+        />
+      )}
+
+      {isMyActivityOpen && (
+        <MyActivityModal
+          isOpen={isMyActivityOpen}
+          onClose={() => setIsMyActivityOpen(false)}
+          initialTab={myActivityInitialTab}
+        />
+      )}
+
+      {isCalculatorOpen && (
+        <RentSplitCalculatorModal
+          isOpen={isCalculatorOpen}
+          onClose={() => setIsCalculatorOpen(false)}
+        />
+      )}
+
+      {isSavedOpen && (
+        <SavedListingsModal
+          isOpen={isSavedOpen}
+          onClose={() => setIsSavedOpen(false)}
         />
       )}
 

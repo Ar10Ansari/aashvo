@@ -24,10 +24,18 @@ import {
   createSupportTicketInSupabase,
   createSafetyReportInSupabase,
   fetchSupportTicketsFromSupabase,
+  addTicketMessageInSupabase,
+  updateTicketStatusInSupabase,
+  updateTicketPriorityInSupabase,
+  assignTicketInSupabase,
+  fetchAllSupportTicketsForAdminFromSupabase,
+  fetchSafetyReportsForAdminFromSupabase,
+  resolveSafetyReportInSupabase,
 } from '../services/supportService';
 import { supabase, isLiveBackendConfigured } from '../services/supabase';
 import {
   fetchPropertiesFromSupabase,
+  fetchAllPropertiesForAdminFromSupabase,
   fetchFlatmatesFromSupabase,
   createPropertyInSupabase,
   updateListingStatusInSupabase,
@@ -36,6 +44,7 @@ import {
 import {
   sanitizeStoredUser,
   canPerformAdminAction,
+  isTrustedAdminSession,
 } from '../services/authorizationService';
 import {
   ensureUserProfileExists,
@@ -67,6 +76,18 @@ interface AppContextType {
   setIsHelpOpen: (open: boolean) => void;
   isRentalTrustOpen: boolean;
   setIsRentalTrustOpen: (open: boolean) => void;
+  isConnectOpen: boolean;
+  setIsConnectOpen: (open: boolean) => void;
+  connectInitialTab: 'discover' | 'matches' | 'chat' | 'settings';
+  openConnectModal: (tab?: 'discover' | 'matches' | 'chat' | 'settings') => void;
+  isMyActivityOpen: boolean;
+  setIsMyActivityOpen: (open: boolean) => void;
+  myActivityInitialTab: 'visits' | 'agreements' | 'checklists' | 'verifications';
+  openMyActivityModal: (tab?: 'visits' | 'agreements' | 'checklists' | 'verifications') => void;
+  isCalculatorOpen: boolean;
+  setIsCalculatorOpen: (open: boolean) => void;
+  isSavedOpen: boolean;
+  setIsSavedOpen: (open: boolean) => void;
   reportingTarget: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null;
   setReportingTarget: (target: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null) => void;
   currentUser: User | null;
@@ -83,7 +104,7 @@ interface AppContextType {
     message: string;
     reportId?: string;
   }>;
-  resolveSafetyReport: (reportId: string, action: 'resolved' | 'dismissed', adminNotes?: string) => void;
+  resolveSafetyReport: (reportId: string, action: 'resolved' | 'dismissed', adminNotes?: string) => Promise<boolean>;
   // Support Tickets System
   supportTickets: SupportTicket[];
   createSupportTicket: (
@@ -96,15 +117,19 @@ interface AppContextType {
     ticketId: string,
     message: string,
     isInternal?: boolean,
-    senderRole?: 'user' | 'support' | 'admin'
-  ) => void;
-  updateTicketStatus: (ticketId: string, newStatus: TicketStatus, adminNotes?: string) => boolean;
-  updateTicketPriority: (ticketId: string, newPriority: TicketPriority) => void;
-  assignTicket: (ticketId: string, adminId: string, adminName: string) => void;
+    senderRole?: 'user' | 'support' | 'admin',
+    guestContext?: { ticketNumber?: string; userEmail?: string; senderName?: string }
+  ) => Promise<boolean>;
+  updateTicketStatus: (ticketId: string, newStatus: TicketStatus, adminNotes?: string) => Promise<boolean>;
+  updateTicketPriority: (ticketId: string, newPriority: TicketPriority) => Promise<boolean>;
+  assignTicket: (ticketId: string, adminId: string, adminName: string) => Promise<boolean>;
   updatePropertyStatus: (id: string, status: ListingStatus) => void;
-  addProperty: (property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => Promise<void>;
+  addProperty: (property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => Promise<boolean>;
   connectRequests: ConnectRequest[];
   submitConnectRequest: (req: Omit<ConnectRequest, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
+  isLoadingData: boolean;
+  dataLoadError: string | null;
+  retryDataLoad: () => void;
   toast: string | null;
   showToast: (msg: string) => void;
 }
@@ -163,9 +188,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [connectRequests, setConnectRequests] = useState<ConnectRequest[]>(() => {
+    if (isLiveBackendConfigured) return [];
     const saved = localStorage.getItem('aashvo_connect_requests');
     return saved ? JSON.parse(saved) : [];
   });
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(isLiveBackendConfigured);
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null);
   const [filters, setFilters] = useState<PropertyFilterState>(defaultFilters);
   const [activeTab, setActiveTab] = useState<DiscoveryTab>('flatmates');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -176,6 +204,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | 'forgot' | 'recovery' | 'personas'>('signin');
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
   const [isRentalTrustOpen, setIsRentalTrustOpen] = useState<boolean>(false);
+  const [isConnectOpen, setIsConnectOpen] = useState<boolean>(false);
+  const [connectInitialTab, setConnectInitialTab] = useState<'discover' | 'matches' | 'chat' | 'settings'>('discover');
+  const [isMyActivityOpen, setIsMyActivityOpen] = useState<boolean>(false);
+  const [myActivityInitialTab, setMyActivityInitialTab] = useState<'visits' | 'agreements' | 'checklists' | 'verifications'>('visits');
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
+  const [isSavedOpen, setIsSavedOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const [reportingTarget, setReportingTarget] = useState<{
     type: 'listing' | 'flatmate' | 'user';
@@ -453,15 +487,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newTicket;
   };
 
-  const addTicketMessage = (
+  const addTicketMessage = async (
     ticketId: string,
     message: string,
     isInternal: boolean = false,
-    senderRole: 'user' | 'support' | 'admin' = 'user'
-  ) => {
+    senderRole: 'user' | 'support' | 'admin' = 'user',
+    guestContext?: { ticketNumber?: string; userEmail?: string; senderName?: string }
+  ): Promise<boolean> => {
     const now = new Date().toISOString();
-    const senderName = currentUser?.name || (senderRole === 'admin' ? 'Aashvo Admin' : 'User');
-    const senderId = currentUser?.id;
+    const senderName = guestContext?.senderName || currentUser?.name || (senderRole === 'admin' ? 'Aashvo Admin' : 'User');
+    const senderId = currentUser?.isDemo ? undefined : currentUser?.id;
+    const targetTicket = supportTickets.find(t => t.id === ticketId);
+
+    if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
+      const res = await addTicketMessageInSupabase({
+        ticketId,
+        ticketNumber: guestContext?.ticketNumber || targetTicket?.ticketNumber,
+        userEmail: guestContext?.userEmail || targetTicket?.userEmail,
+        senderId,
+        senderName,
+        senderRole,
+        message,
+        isInternal,
+        currentTicketStatus: targetTicket?.status,
+      });
+
+      if (!res.success || !res.message) {
+        showToast(`Failed to send reply: ${res.error || 'Please try again.'}`);
+        return false;
+      }
+
+      setSupportTickets(prev =>
+        prev.map(ticket => {
+          if (ticket.id !== ticketId) return ticket;
+          const nextStatus = senderRole === 'user' && ticket.status === 'awaiting_user' ? 'in_review' : ticket.status;
+          return {
+            ...ticket,
+            status: nextStatus,
+            updatedAt: now,
+            messages: [...ticket.messages, res.message!],
+            auditEvents: res.auditEvent
+              ? [...(ticket.auditEvents || []), res.auditEvent]
+              : ticket.auditEvents,
+          };
+        })
+      );
+
+      showToast(isInternal ? 'Internal note saved.' : 'Reply sent successfully.');
+      return true;
+    }
 
     setSupportTickets(prev =>
       prev.map(ticket => {
@@ -509,9 +583,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     showToast(isInternal ? 'Internal note added to ticket history.' : 'Reply sent successfully.');
+    return true;
   };
 
-  const updateTicketStatus = (ticketId: string, newStatus: TicketStatus, adminNotes?: string): boolean => {
+  const updateTicketStatus = async (
+    ticketId: string,
+    newStatus: TicketStatus,
+    adminNotes?: string
+  ): Promise<boolean> => {
     const ticket = supportTickets.find(t => t.id === ticketId);
     if (!ticket) return false;
 
@@ -532,6 +611,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date().toISOString();
     const adminName = currentUser?.name || 'Aashvo Safety Admin';
     const adminId = currentUser?.id;
+
+    if (isLiveBackendConfigured && supabase) {
+      if (!adminId) {
+        showToast('Authentication required to update ticket status.');
+        return false;
+      }
+      const res = await updateTicketStatusInSupabase({
+        ticketId,
+        oldStatus: ticket.status,
+        newStatus,
+        actorId: adminId,
+        actorName: adminName,
+        notes: adminNotes,
+      });
+      if (!res.success) {
+        showToast(`Ticket status update failed: ${res.error || 'Server rejected change'}`);
+        return false;
+      }
+    }
 
     setSupportTickets(prev =>
       prev.map(t => {
@@ -560,21 +658,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    if (isLiveBackendConfigured && supabase) {
-      supabase
-        .from('support_tickets')
-        .update({
-          status: newStatus,
-          updated_at: now,
-          resolved_at: newStatus === 'resolved' ? now : undefined,
-          resolved_by: newStatus === 'resolved' ? adminId : undefined,
-        })
-        .eq('id', ticketId)
-        .then(({ error }) => {
-          if (error) console.warn('[Supabase Ticket Status Update Notice]', error.message);
-        });
-    }
-
     dispatchSupportNotification('status_changed', {
       ticketNumber: ticket.ticketNumber,
       recipientEmail: ticket.userEmail,
@@ -585,14 +668,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  const updateTicketPriority = (ticketId: string, newPriority: TicketPriority) => {
+  const updateTicketPriority = async (ticketId: string, newPriority: TicketPriority): Promise<boolean> => {
     const authCheck = canPerformAdminAction(currentUser, 'update_ticket_priority');
     if (!authCheck.allowed) {
       showToast(`Unauthorized: ${authCheck.reason}`);
-      return;
+      return false;
     }
 
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return false;
+
     const now = new Date().toISOString();
+    if (isLiveBackendConfigured && supabase && currentUser) {
+      const res = await updateTicketPriorityInSupabase({
+        ticketId,
+        oldPriority: ticket.priority,
+        newPriority,
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+      });
+      if (!res.success) {
+        showToast(`Priority update failed: ${res.error || 'Server rejected change'}`);
+        return false;
+      }
+    }
+
     setSupportTickets(prev =>
       prev.map(t => {
         if (t.id !== ticketId) return t;
@@ -615,16 +715,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
     showToast(`Ticket priority changed to ${newPriority.toUpperCase()}`);
+    return true;
   };
 
-  const assignTicket = (ticketId: string, adminId: string, adminName: string) => {
+  const assignTicket = async (ticketId: string, adminId: string, adminName: string): Promise<boolean> => {
     const authCheck = canPerformAdminAction(currentUser, 'assign_ticket');
     if (!authCheck.allowed) {
       showToast(`Unauthorized: ${authCheck.reason}`);
-      return;
+      return false;
     }
 
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return false;
+
     const now = new Date().toISOString();
+    if (isLiveBackendConfigured && supabase && currentUser) {
+      const res = await assignTicketInSupabase({
+        ticketId,
+        oldAssigneeName: ticket.assignedName,
+        assigneeId: adminId,
+        assigneeName: adminName,
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+      });
+      if (!res.success) {
+        showToast(`Ticket assignment failed: ${res.error || 'Server rejected change'}`);
+        return false;
+      }
+    }
+
     setSupportTickets(prev =>
       prev.map(t => {
         if (t.id !== ticketId) return t;
@@ -648,6 +767,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
     showToast(`Ticket assigned to ${adminName}`);
+    return true;
   };
 
   // Safety Reports Handlers
@@ -713,14 +833,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const resolveSafetyReport = (reportId: string, action: 'resolved' | 'dismissed', adminNotes?: string) => {
+  const resolveSafetyReport = async (
+    reportId: string,
+    action: 'resolved' | 'dismissed',
+    adminNotes?: string
+  ): Promise<boolean> => {
     const authCheck = canPerformAdminAction(currentUser, 'resolve_safety_report');
     if (!authCheck.allowed) {
       showToast(`Unauthorized: ${authCheck.reason}`);
-      return;
+      return false;
     }
 
     const now = new Date().toISOString();
+    if (isLiveBackendConfigured && supabase && currentUser) {
+      const res = await resolveSafetyReportInSupabase({
+        reportId,
+        status: action,
+        adminNotes,
+        reviewerId: currentUser.id,
+      });
+      if (!res.success) {
+        showToast(`Failed to update report: ${res.error || 'Server rejected update'}`);
+        return false;
+      }
+    }
+
     setSafetyReports(prev =>
       prev.map(r =>
         r.id === reportId
@@ -734,20 +871,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
-    if (isLiveBackendConfigured && supabase) {
-      supabase
-        .from('safety_reports')
-        .update({
-          status: action,
-          admin_notes: adminNotes || null,
-        })
-        .eq('id', reportId)
-        .then(({ error }) => {
-          if (error) console.warn('[Supabase Safety Report Resolution Notice]', error.message);
-        });
-    }
 
     showToast(`Report marked as ${action.toUpperCase()}`);
+    return true;
   };
 
   // Authenticated user state (defaults to null for unauthenticated visitors)
@@ -797,34 +923,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
+  const loadPublicMarketplaceData = async () => {
+    if (!isLiveBackendConfigured || !supabase) {
+      setIsLoadingData(false);
+      setDataLoadError(null);
+      return;
+    }
+
+    setIsLoadingData(true);
+    setDataLoadError(null);
+
+    try {
+      const [propRes, flatmateRes] = await Promise.all([
+        fetchPropertiesFromSupabase(),
+        fetchFlatmatesFromSupabase(),
+      ]);
+
+      const errors: string[] = [];
+      if (propRes.success) {
+        setProperties(propRes.properties || []);
+      } else {
+        setProperties([]);
+        errors.push(propRes.error || 'Could not load property listings.');
+      }
+
+      if (flatmateRes.success) {
+        setFlatmates(flatmateRes.flatmates);
+      } else {
+        setFlatmates([]);
+        errors.push(flatmateRes.error || 'Could not load flatmate profiles.');
+      }
+
+      if (errors.length > 0) {
+        setDataLoadError(errors.join(' '));
+      }
+    } catch (err) {
+      setProperties([]);
+      setFlatmates([]);
+      setDataLoadError(err instanceof Error ? err.message : 'Unable to reach Supabase backend.');
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const retryDataLoad = () => {
+    loadPublicMarketplaceData();
+  };
+
   // Hydrate live database properties and flatmate profiles if Supabase is connected
   useEffect(() => {
-    if (isLiveBackendConfigured && supabase) {
-      fetchPropertiesFromSupabase().then(res => {
-        setProperties(res.success ? (res.properties || []) : []);
-      }).catch(err => {
-        console.warn('[Supabase Property Hydration Notice]', err);
-        setProperties([]);
-      });
-
-      fetchFlatmatesFromSupabase().then(res => {
-        setFlatmates(res.success ? res.flatmates : []);
-      }).catch(err => {
-        console.warn('[Supabase Flatmate Hydration Notice]', err);
-        setFlatmates([]);
-      });
-    }
+    loadPublicMarketplaceData();
   }, []);
 
-  // Hydrate only the authenticated user's support tickets from the backend.
+  // Hydrate user support tickets, or full admin moderation queues when verified staff signs in
   useEffect(() => {
     if (!isLiveBackendConfigured || !supabase || !currentUser || currentUser.isDemo) return;
 
-    fetchSupportTicketsFromSupabase(currentUser.email, currentUser.id).then(res => {
-      if (res.success) setSupportTickets(res.tickets || []);
-    }).catch(err => {
-      console.warn('[Supabase Support Hydration Notice]', err);
-    });
+    if (isTrustedAdminSession(currentUser)) {
+      Promise.all([
+        fetchAllSupportTicketsForAdminFromSupabase(),
+        fetchSafetyReportsForAdminFromSupabase(),
+        fetchAllPropertiesForAdminFromSupabase(),
+      ])
+        .then(([ticketsRes, reportsRes, adminPropsRes]) => {
+          if (ticketsRes.success) setSupportTickets(ticketsRes.tickets || []);
+          if (reportsRes.success) setSafetyReports(reportsRes.reports || []);
+          if (adminPropsRes.success) setProperties(adminPropsRes.properties || []);
+        })
+        .catch(err => {
+          console.warn('[Supabase Admin Hydration Notice]', err);
+        });
+      return;
+    }
+
+    fetchSupportTicketsFromSupabase(currentUser.email, currentUser.id)
+      .then(res => {
+        if (res.success) setSupportTickets(res.tickets || []);
+      })
+      .catch(err => {
+        console.warn('[Supabase Support Hydration Notice]', err);
+      });
   }, [currentUser]);
 
   // Check for URL OAuth callbacks/errors and password recovery hashes on mount
@@ -1005,27 +1183,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addProperty = async (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>): Promise<void> => {
+  const addProperty = async (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>): Promise<boolean> => {
     const newProp: Property = {
       ...newPropData,
       id: `prop-${Date.now()}`,
       status: 'pending_review', // Default to pending review for safety
       lastVerifiedDate: new Date().toISOString(),
     };
-    if (isLiveBackendConfigured && supabase && currentUser && !currentUser.isDemo) {
+    if (isLiveBackendConfigured && supabase) {
+      if (!currentUser || currentUser.isDemo) {
+        showToast('Please sign in with a verified account to publish a listing.');
+        return false;
+      }
       const res = await createPropertyInSupabase(newPropData, currentUser);
       if (!res.success || !res.property) {
         showToast(`Listing submission failed: ${res.errors?.join(' ') || 'Please try again.'}`);
-        return;
+        return false;
       }
       setProperties(prev => [res.property!, ...prev]);
       setIsListPropertyOpen(false);
       showToast('🎉 Property submitted to moderation queue for verification!');
-    } else {
-      setProperties(prev => [newProp, ...prev]);
-      setIsListPropertyOpen(false);
-      showToast('Listing saved to local draft preview (Cloud synchronization offline in prototype mode).');
+      return true;
     }
+
+    setProperties(prev => [newProp, ...prev]);
+    setIsListPropertyOpen(false);
+    showToast('Listing saved to local draft preview (Cloud synchronization offline in prototype mode).');
+    return true;
   };
 
   const submitConnectRequest = async (reqData: Omit<ConnectRequest, 'id' | 'createdAt'>): Promise<{ success: boolean; error?: string }> => {
@@ -1096,6 +1280,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsHelpOpen,
         isRentalTrustOpen,
         setIsRentalTrustOpen,
+        isConnectOpen,
+        setIsConnectOpen,
+        connectInitialTab,
+        openConnectModal: (tab?: 'discover' | 'matches' | 'chat' | 'settings') => {
+          if (tab) setConnectInitialTab(tab);
+          setIsConnectOpen(true);
+        },
+        isMyActivityOpen,
+        setIsMyActivityOpen,
+        myActivityInitialTab,
+        openMyActivityModal: (tab?: 'visits' | 'agreements' | 'checklists' | 'verifications') => {
+          if (tab) setMyActivityInitialTab(tab);
+          setIsMyActivityOpen(true);
+        },
+        isCalculatorOpen,
+        setIsCalculatorOpen,
+        isSavedOpen,
+        setIsSavedOpen,
         reportingTarget,
         setReportingTarget,
         currentUser,
@@ -1118,6 +1320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProperty,
         connectRequests,
         submitConnectRequest,
+        isLoadingData,
+        dataLoadError,
+        retryDataLoad,
         toast,
         showToast,
       }}

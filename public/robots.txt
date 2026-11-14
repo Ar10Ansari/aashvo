@@ -3,14 +3,17 @@
 
 User-agent: *
 Allow: /
+Allow: /llms.txt
+Allow: /sitemap.xml
 
-# Disallow private user portals, auth callbacks, and administrative consoles
+# Disallow private user portals, auth callbacks, private APIs, and administrative consoles
 Disallow: /admin
 Disallow: /auth/
 Disallow: /api/
 Disallow: /tickets/
 Disallow: /disputes/
 Disallow: /reports/
+Disallow: /dashboard
 
-# Sitemap Location
+# Discovery Sitemaps
 Sitemap: https://aashvo.vercel.app/sitemap.xml

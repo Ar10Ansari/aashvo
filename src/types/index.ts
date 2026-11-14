@@ -43,6 +43,8 @@ export interface Property {
   status: ListingStatus;
   description: string;
   featured?: boolean;
+  ownerId?: string;
+  verificationStatus?: 'verified' | 'pending' | 'unverified';
 }
 
 export type FoodHabit = 'Vegetarian' | 'Non-Vegetarian' | 'Eggetarian' | 'Vegan';

@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { PropertyCard } from '../property/PropertyCard';
 import { PropertyFilters } from '../property/PropertyFilters';
 import { FlatmateCard } from '../flatmate/FlatmateCard';
-import { Users, UtensilsCrossed, Building2, RotateCcw, HeartHandshake } from 'lucide-react';
+import { Users, UtensilsCrossed, Building2, RotateCcw, HeartHandshake, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { FoodHabit, MealsOffered } from '../../types';
 
 export const DiscoverySection: React.FC = () => {
@@ -16,6 +16,10 @@ export const DiscoverySection: React.FC = () => {
     setSelectedProperty,
     setSelectedFlatmate,
     resetFilters,
+    openConnectModal,
+    isLoadingData,
+    dataLoadError,
+    retryDataLoad,
   } = useApp();
 
   // Local filter states for Family Stays & Flatmates
@@ -225,7 +229,31 @@ export const DiscoverySection: React.FC = () => {
       )}
 
       {activeTab === 'flatmates' && (
-        <div className="mb-6 bg-white rounded-2xl p-4 border border-charcoal-200/70 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <>
+          {/* Aashvo Connect Swipe-Deck Feature Banner */}
+          <div className="mb-6 bg-gradient-to-r from-forest-800 to-forest-900 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 border border-forest-700">
+            <div className="space-y-1">
+              <div className="inline-flex items-center space-x-1.5 px-3 py-0.5 rounded-full bg-forest-700/80 border border-forest-600 text-sand-300 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Aashvo Connect</span>
+              </div>
+              <h3 className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-white">
+                Swipe-Based Flatmate Discovery & Mutual Matching
+              </h3>
+              <p className="text-xs sm:text-sm text-ivory-200/90 max-w-xl leading-relaxed">
+                Compare 5-dimension lifestyle compatibility (diet, sleep, cleanliness, budget, interests) and match before chatting. Direct profile inquiries remain available below.
+              </p>
+            </div>
+            <button
+              onClick={() => openConnectModal()}
+              className="px-6 py-3 rounded-full bg-sand-400 text-forest-950 font-bold text-xs sm:text-sm hover:bg-sand-300 shadow-md transition-all self-start md:self-center flex items-center space-x-2 flex-shrink-0"
+            >
+              <Sparkles className="w-4 h-4 text-forest-900" />
+              <span>Launch Aashvo Connect</span>
+            </button>
+          </div>
+
+          <div className="mb-6 bg-white rounded-2xl p-4 border border-charcoal-200/70 shadow-sm flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-wider text-charcoal-600 flex items-center space-x-1.5 mr-1">
               <HeartHandshake className="w-3.5 h-3.5 text-forest-700" />
@@ -266,13 +294,40 @@ export const DiscoverySection: React.FC = () => {
             <span>Reset Profile Filters</span>
           </button>
         </div>
+        </>
       )}
 
       {/* Multi-dimensional Property Filter Bar for Family Stays & Entire Flats */}
       {(activeTab === 'family_stays' || activeTab === 'entire_flats' || activeTab === 'places') && <PropertyFilters />}
 
+      {/* Live Backend Error Banner */}
+      {dataLoadError && (
+        <div className="mb-6 bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-900">
+          <div className="flex items-start space-x-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-semibold">Unable to load live marketplace inventory</strong>
+              <span className="text-rose-700">{dataLoadError}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={retryDataLoad}
+            className="px-4 py-2 bg-rose-900 text-white rounded-xl font-semibold hover:bg-rose-800 transition-colors self-start sm:self-center shrink-0"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Content Grid */}
-      {activeTab === 'flatmates' ? (
+      {isLoadingData ? (
+        <div className="bg-white rounded-3xl p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto">
+          <Loader2 className="w-8 h-8 text-forest-700 animate-spin mx-auto mb-3" />
+          <h3 className="font-serif text-lg font-bold text-charcoal-800">Loading verified inventory...</h3>
+          <p className="text-xs text-charcoal-500 mt-1">Connecting to Aashvo marketplace database.</p>
+        </div>
+      ) : activeTab === 'flatmates' ? (
         filteredFlatmates.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {filteredFlatmates.map(flatmate => (

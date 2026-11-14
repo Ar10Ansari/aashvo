@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PropertyType, RoomType, ProviderType, FurnishingStatus, GenderPreference, MealsOffered } from '../../types';
-import { X, Check, ArrowRight, ArrowLeft, Sparkles, MapPin, Navigation, UtensilsCrossed, ShieldAlert, Building2, Users } from 'lucide-react';
+import { X, Check, ArrowRight, ArrowLeft, Sparkles, MapPin, Navigation, UtensilsCrossed, ShieldAlert, Building2, Users, Upload } from 'lucide-react';
 import { formatINR } from '../../utils/formatters';
+import { uploadPropertyPhoto, validateStorageFile } from '../../services/storageService';
 
 interface ListPropertyModalProps {
   onClose: () => void;
@@ -95,6 +96,9 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
   // Step 4: Photos
   const [images, setImages] = useState<string[]>([SAMPLE_PHOTO_PRESETS[0], SAMPLE_PHOTO_PRESETS[1]]);
   const [customImageUrl, setCustomImageUrl] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Step 5: Identity & Brokerage declaration
   const [providerType, setProviderType] = useState<ProviderType>('owner');
@@ -175,6 +179,38 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
     }
   };
 
+  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhotoUploadError(null);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!currentUser || currentUser.isDemo) {
+      setPhotoUploadError('Please sign in with an account to upload property photos to cloud storage.');
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      for (const file of Array.from(files)) {
+        const validation = validateStorageFile(file.size, file.type, 'property-photos');
+        if (!validation.isValid) {
+          setPhotoUploadError(validation.error || `Invalid file: ${file.name}`);
+          continue;
+        }
+        const res = await uploadPropertyPhoto(file, currentUser.id, file.name, file.type);
+        if (res.success && res.publicUrl) {
+          setImages(prev => [...prev, res.publicUrl!]);
+        } else {
+          setPhotoUploadError(res.error || `Failed to upload ${file.name}`);
+        }
+      }
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
+
   const handleNextStep = () => {
     if (step === 1) {
       if (!title.trim() || !locality.trim() || !addressShort.trim()) {
@@ -217,41 +253,46 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
     const finalCategory: 'family_stays' | 'flats_rooms' = listingIntent === 'family_stays' ? 'family_stays' : 'flats_rooms';
     const finalRoomType: RoomType = listingIntent === 'entire_flats' ? 'entire_flat' : roomType;
 
-    await addProperty({
-      title,
-      locality,
-      city,
-      state,
-      pincode,
-      coordinates,
-      addressShort,
-      propertyType,
-      roomType: finalRoomType,
-      category: finalCategory,
-      familyLivesOnProperty: listingIntent === 'family_stays' ? true : familyLivesOnProperty,
-      mealsOffered: listingIntent === 'family_stays' ? mealsOffered : 'none',
-      optionalMealCost: mealsOffered === 'optional_extra' ? optionalMealCost : 0,
-      rent,
-      deposit,
-      maintenance,
-      electricityPerUnit,
-      brokerageFee: providerType === 'owner' ? 0 : brokerageFee,
-      providerType,
-      providerName: providerName || (listingIntent === 'family_stays' ? 'Resident Host Family' : 'Verified Host'),
-      providerContact: providerContact || '+91 98101 XXXXX',
-      furnishing,
-      bedrooms,
-      bathrooms,
-      availableFrom,
-      images: images.length > 0 ? images : [SAMPLE_PHOTO_PRESETS[0]],
-      amenities: selectedAmenities,
-      rules: listingIntent === 'family_stays'
-        ? ['Family home respect', 'Cleanliness observed', 'Co-living harmony']
-        : ['Cleanliness observed', 'Co-living respect'],
-      genderPreference,
-      description: description.trim() || `Well-maintained ${finalRoomType} in ${locality}, ${city}. Ready for move-in.`,
-      featured: false,
-    });
+    setIsSubmitting(true);
+    try {
+      await addProperty({
+        title,
+        locality,
+        city,
+        state,
+        pincode,
+        coordinates,
+        addressShort,
+        propertyType,
+        roomType: finalRoomType,
+        category: finalCategory,
+        familyLivesOnProperty: listingIntent === 'family_stays' ? true : familyLivesOnProperty,
+        mealsOffered: listingIntent === 'family_stays' ? mealsOffered : 'none',
+        optionalMealCost: mealsOffered === 'optional_extra' ? optionalMealCost : 0,
+        rent,
+        deposit,
+        maintenance,
+        electricityPerUnit,
+        brokerageFee: providerType === 'owner' ? 0 : brokerageFee,
+        providerType,
+        providerName: providerName || (listingIntent === 'family_stays' ? 'Resident Host Family' : 'Verified Host'),
+        providerContact: providerContact || '+91 98101 XXXXX',
+        furnishing,
+        bedrooms,
+        bathrooms,
+        availableFrom,
+        images: images.length > 0 ? images : [SAMPLE_PHOTO_PRESETS[0]],
+        amenities: selectedAmenities,
+        rules: listingIntent === 'family_stays'
+          ? ['Family home respect', 'Cleanliness observed', 'Co-living harmony']
+          : ['Cleanliness observed', 'Co-living respect'],
+        genderPreference,
+        description: description.trim() || `Well-maintained ${finalRoomType} in ${locality}, ${city}. Ready for move-in.`,
+        featured: false,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -811,6 +852,24 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
                 ))}
               </div>
 
+              <div className="p-4 rounded-2xl border border-dashed border-charcoal-300 bg-ivory-50/70 space-y-2">
+                <label className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-charcoal-200 rounded-xl text-xs font-semibold text-charcoal-800 hover:bg-ivory-100 cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-forest-700" />
+                  <span>{isUploadingPhoto ? 'Uploading photo...' : 'Upload Property Photos (JPG, PNG, WEBP • max 5MB)'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    disabled={isUploadingPhoto}
+                    onChange={handlePhotoFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                {photoUploadError && (
+                  <p className="text-xs text-rose-700 font-medium">{photoUploadError}</p>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <input
                   type="url"
@@ -1015,10 +1074,11 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center space-x-2"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4 text-sand-300" />
-              <span>Publish Listing on Aashvo</span>
+              <span>{isSubmitting ? 'Submitting Listing...' : 'Publish Listing on Aashvo'}</span>
             </button>
           )}
         </div>

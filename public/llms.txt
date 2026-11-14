@@ -1,0 +1,30 @@
+# Aashvo (https://aashvo.vercel.app)
+> Find your place. Find your people.
+
+Aashvo is a verified pan-India shared-living and flatmate discovery platform designed for university students, young professionals, and relocating individuals. The platform eliminates broker fees and provides itemized cost transparency and rental agreement trust.
+
+## Core Marketplace Categories
+- **Flatmates & Shared Living**: Connect with compatible roommates based on verified lifestyle habits (food habits, sleep schedules, cleanliness levels, and shared interests) with adult eligibility verification (age 18+).
+- **Family Stays (with Homecooked Meals)**: Private rooms inside family homes where the host family lives on the property, providing safe environments with transparent meal inclusions (included, optional extra, or none).
+- **Direct-Owner Flats & Rooms**: Zero-brokerage apartments and builder floors with transparent monthly rent, security deposit limits, and maintenance costs.
+
+## Operating Metros & Cities (India)
+- Delhi NCR (Gurugram, Noida, South Delhi, Dwarka, Cyber City, Golf Course Road, Sector 62)
+- Bengaluru (Koramangala, HSR Layout, Indiranagar, Whitefield, Electronic City)
+- Mumbai & Navi Mumbai (Bandra, Andheri, Powai, Thane)
+- Pune (Kothrud, Viman Nagar, Hinjewadi, Baner)
+- Hyderabad (HITEC City, Gachibowli, Madhapur, Kondapur)
+
+## Key Value Propositions & Safety Guarantees
+- **Zero Brokerage Fees**: Direct connection between renters, flatmates, and homeowners.
+- **Location Privacy Masking**: Precise residential street addresses and unit numbers are masked publicly to prevent unwanted walk-ins, revealing exact locations only after mutual inquiry acceptance.
+- **Contact Privacy**: Phone numbers remain masked (+91 ***** *XXXX) until an inquiry is accepted.
+- **Tenancy Trust Protection**: Digital tenancy agreement drafting, itemized move-in condition reports, and deposit dispute resolution frameworks.
+
+## Technical & Architectural Overview
+- **Production Website**: https://aashvo.vercel.app
+- **Official Contact**: support@aashvo.com | support@aashvo.in
+- **Repository**: https://github.com/Ar10Ansari/aashvo
+- **Architecture**: Modular monolith NestJS 11 backend, PostgreSQL 16 database, Prisma ORM, and React 18 TypeScript frontend.
+- **Sitemap**: https://aashvo.vercel.app/sitemap.xml
+

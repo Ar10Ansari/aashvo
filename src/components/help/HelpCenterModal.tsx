@@ -245,7 +245,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
   };
 
   // Add User Reply to Ticket
-  const handleSendReply = (e: React.FormEvent) => {
+  const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeTicket || !replyMessage.trim()) return;
 
@@ -254,10 +254,43 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
       return;
     }
 
+    const trimmedReply = replyMessage.trim();
     setIsReplying(true);
-    addTicketMessage(activeTicket.id, replyMessage.trim(), false, 'user');
-    setReplyMessage('');
-    setIsReplying(false);
+    try {
+      const sent = await addTicketMessage(activeTicket.id, trimmedReply, false, 'user', {
+        ticketNumber: activeTicket.ticketNumber,
+        userEmail: activeTicket.userEmail,
+        senderName: activeTicket.userName,
+      });
+
+      if (sent) {
+        if (guestTicket && guestTicket.id === activeTicket.id) {
+          setGuestTicket(prev =>
+            prev
+              ? {
+                  ...prev,
+                  status: prev.status === 'awaiting_user' ? 'in_review' : prev.status,
+                  messages: [
+                    ...prev.messages,
+                    {
+                      id: `msg-${Date.now()}`,
+                      ticketId: prev.id,
+                      senderName: prev.userName,
+                      senderRole: 'user',
+                      message: trimmedReply,
+                      isInternal: false,
+                      createdAt: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : prev
+          );
+        }
+        setReplyMessage('');
+      }
+    } finally {
+      setIsReplying(false);
+    }
   };
 
   // Helper for Status Badge styling

@@ -5,6 +5,7 @@ import { FAQ_CATEGORY_LABELS } from '../../data/faqData';
 import { TicketStatus, TicketPriority } from '../../types';
 import { canTransitionTicketStatus } from '../../services/supportService';
 import { isTrustedAdminSession } from '../../services/authorizationService';
+import { reviewPropertyVerification } from '../../services/marketplaceService';
 import {
   X,
   ShieldCheck,
@@ -14,6 +15,7 @@ import {
   Send,
   History,
   UserCheck,
+  Award,
 } from 'lucide-react';
 
 interface AdminModerationModalProps {
@@ -95,7 +97,7 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
     updatePropertyStatus(id, 'rented');
   };
 
-  const handleSendAdminReply = (e: React.FormEvent) => {
+  const handleSendAdminReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) {
       showToast('Action blocked: Verified staff credentials required.');
@@ -103,17 +105,19 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
     }
     if (!activeTicket || !adminReplyText.trim()) return;
 
-    addTicketMessage(
+    const ok = await addTicketMessage(
       activeTicket.id,
       adminReplyText.trim(),
       isInternalNote,
       isInternalNote ? 'admin' : 'support'
     );
 
-    setAdminReplyText('');
+    if (ok) {
+      setAdminReplyText('');
+    }
   };
 
-  const handleStatusChange = (newStatus: TicketStatus) => {
+  const handleStatusChange = async (newStatus: TicketStatus) => {
     if (!isAdmin) {
       showToast('Action blocked: Verified staff credentials required.');
       return;
@@ -124,8 +128,10 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
       return;
     }
 
-    updateTicketStatus(activeTicket.id, newStatus, transitionNotes.trim() || undefined);
-    setTransitionNotes('');
+    const ok = await updateTicketStatus(activeTicket.id, newStatus, transitionNotes.trim() || undefined);
+    if (ok) {
+      setTransitionNotes('');
+    }
   };
 
   // Status Badge Helper
@@ -141,6 +147,20 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
         return <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Resolved</span>;
       case 'closed':
         return <span className="bg-charcoal-100 text-charcoal-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Closed</span>;
+    }
+  };
+
+  const handleVerifyProperty = async (propertyId: string) => {
+    try {
+      const res = await reviewPropertyVerification(propertyId, {
+        status: 'verified',
+        reviewNotes: 'Verified by compliance officer',
+      });
+      if (res.success && showToast) {
+        showToast('Property verified and badge granted!');
+      }
+    } catch {
+      if (showToast) showToast('Verification update failed');
     }
   };
 
@@ -719,6 +739,15 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
                               Mark Rented
                             </button>
                           )}
+
+                          <button
+                            onClick={() => handleVerifyProperty(p.id)}
+                            className="px-3 py-1.5 bg-forest-800 text-white rounded-xl text-xs font-semibold hover:bg-forest-900 transition-colors flex items-center space-x-1"
+                            title="Verify property ownership proof"
+                          >
+                            <Award className="w-3.5 h-3.5 text-sand-300" />
+                            <span>Verify Docs</span>
+                          </button>
                         </div>
                       </div>
                     );

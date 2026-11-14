@@ -19,6 +19,24 @@ import {
   mapSupabaseFlatmateToApp,
   mapAppFlatmateToSupabaseInsert,
 } from './supabase';
+import { apiClient } from './apiClient';
+
+interface PropertyPhotoRow {
+  photo_url?: string;
+  sort_order?: number;
+}
+
+export interface InterestRequestRow {
+  id: string;
+  sender_id: string;
+  property_id?: string | null;
+  flatmate_profile_id?: string | null;
+  message: string;
+  proposed_move_in_date?: string | null;
+  contact_phone?: string | null;
+  status: string;
+  created_at: string;
+}
 
 export interface ListingValidationResult {
   isValid: boolean;
@@ -514,18 +532,67 @@ export async function fetchOwnerPropertiesFromSupabase(
     try {
       const { data, error } = await supabase
         .from('properties')
-        .select('*')
+        .select('*, property_photos(photo_url, sort_order)')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (error) return { success: false, error: error.message };
-      return { success: true, properties: (data || []).map(mapSupabasePropertyToApp) };
+      const mapped = (data || []).map((row: Record<string, any>) => {
+        const photos = Array.isArray(row.property_photos)
+          ? [...row.property_photos]
+              .sort((a: PropertyPhotoRow, b: PropertyPhotoRow) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+              .map((p: PropertyPhotoRow) => p.photo_url)
+              .filter(Boolean)
+          : [];
+        return mapSupabasePropertyToApp({ ...row, images: photos });
+      });
+      return { success: true, properties: mapped };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch owner properties' };
     }
   }
 
   return { success: true, properties: [] };
+}
+
+/**
+ * Fetches all properties (all moderation statuses) for verified staff administrators under RLS.
+ */
+export async function fetchAllPropertiesForAdminFromSupabase(): Promise<{
+  success: boolean;
+  properties?: Property[];
+  error?: string;
+}> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: 'Live backend unconfigured' };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*, property_photos(photo_url, sort_order), profiles:owner_id(full_name)')
+      .order('created_at', { ascending: false });
+
+    if (error) return { success: false, error: error.message };
+
+    const mapped = (data || []).map((row: Record<string, any>) => {
+      const photos = Array.isArray(row.property_photos)
+        ? [...row.property_photos]
+            .sort((a: PropertyPhotoRow, b: PropertyPhotoRow) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map((p: PropertyPhotoRow) => p.photo_url)
+            .filter(Boolean)
+        : [];
+      return mapSupabasePropertyToApp({
+        ...row,
+        provider_name: row.profiles?.full_name || row.provider_name,
+        images: photos,
+      });
+    });
+
+    return { success: true, properties: mapped };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch admin properties' };
+  }
 }
 
 /**
@@ -594,7 +661,7 @@ export async function submitInquiryInSupabase(
  */
 export async function fetchInquiriesForProperty(
   propertyId: string
-): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+): Promise<{ success: boolean; inquiries?: InterestRequestRow[]; error?: string }> {
   if (isLiveBackendConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -618,7 +685,7 @@ export async function fetchInquiriesForProperty(
  */
 export async function fetchInquiriesForFlatmate(
   flatmateProfileId: string
-): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+): Promise<{ success: boolean; inquiries?: InterestRequestRow[]; error?: string }> {
   if (isLiveBackendConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -674,6 +741,40 @@ export async function fetchFlatmatesFromSupabase(): Promise<{
   }
 
   return { success: true, flatmates: SEED_FLATMATES };
+}
+
+/**
+ * Fetches the authenticated user's own flatmate profile from public.flatmate_profiles under RLS.
+ */
+export async function fetchMyFlatmateProfileFromSupabase(
+  userId: string
+): Promise<{ success: boolean; flatmate?: Flatmate | null; error?: string }> {
+  if (!isLiveBackendConfigured || !supabase) {
+    return { success: false, error: 'Live backend unconfigured' };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('flatmate_profiles')
+      .select(`
+        *,
+        profiles:user_id (
+          id,
+          full_name,
+          avatar_url,
+          role,
+          id_verified,
+          phone_verified
+        )
+      `)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, flatmate: data ? mapSupabaseFlatmateToApp(data) : null };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch flatmate profile' };
+  }
 }
 
 /**
@@ -907,5 +1008,288 @@ export async function updateListingStatusInSupabase(
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Status update failed' };
+  }
+}
+
+// ============================================================================
+// INDEPENDENT NESTJS BACKEND INTEGRATION (/api/v1)
+// ============================================================================
+
+export function mapBackendPropertyToApp(item: any): Property {
+  return {
+    id: item.id,
+    title: item.title,
+    locality: item.locality,
+    city: item.city,
+    state: item.state,
+    pincode: item.pincode,
+    addressShort: item.addressShort || `${item.locality}, ${item.city}`,
+    propertyType: item.propertyType || 'apartment',
+    roomType: item.roomType || 'private_room',
+    category: item.category || 'flats_rooms',
+    familyLivesOnProperty: Boolean(item.familyLivesOnProperty),
+    mealsOffered: item.mealsOffered || 'none',
+    optionalMealCost: item.optionalMealCost ? Number(item.optionalMealCost) : undefined,
+    rent: Number(item.rentAmount || 0),
+    deposit: Number(item.depositAmount || 0),
+    maintenance: Number(item.maintenanceCharge || 0),
+    electricityPerUnit: item.electricityRatePerUnit ? Number(item.electricityRatePerUnit) : 8,
+    brokerageFee: Number(item.brokerageFee || 0),
+    providerType: item.providerType || 'owner',
+    providerName: 'Verified Host',
+    providerContact: 'Verified via Aashvo',
+    furnishing: item.furnishing || 'semi_furnished',
+    bedrooms: Number(item.bedrooms || 1),
+    bathrooms: Number(item.bathrooms || 1),
+    availableFrom: item.availableFrom || 'Immediately',
+    lastVerifiedDate: item.createdAt || new Date().toISOString(),
+    images: item.primaryPhotoUrl ? [item.primaryPhotoUrl] : [],
+    amenities: item.amenities || [],
+    rules: item.houseRules || [],
+    genderPreference: item.genderPreference || 'any',
+    status: item.status || 'active',
+    description: item.description || item.title,
+    featured: Boolean(item.featured),
+  };
+}
+
+export function mapBackendFlatmateToApp(item: any): Flatmate {
+  return {
+    id: item.id,
+    name: item.user?.fullName || 'Verified Flatmate',
+    age: Number(item.age || 22),
+    occupation: item.occupation || 'Professional',
+    avatar: item.user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    gender: item.gender?.toLowerCase() === 'female' ? 'female' : 'male',
+    hasRoom: Boolean(item.hasRoom),
+    roomDetails: item.roomDetails || undefined,
+    targetLocalities: item.targetLocalities || [],
+    city: item.city || 'Delhi NCR',
+    budgetMax: Number(item.budgetMax || 20000),
+    foodHabit: item.foodHabit || 'Vegetarian',
+    sleepRoutine: item.sleepRoutine || 'Flexible',
+    cleanliness: item.cleanliness || 'Spotless',
+    petFriendly: Boolean(item.petFriendly),
+    smoking: item.smoking === 'Non-smoker' || item.smoking === 'No' ? 'No' : 'Yes',
+    bio: item.bio || '',
+    interests: item.interests || [],
+    verified: Boolean(item.verified || item.user?.idVerified),
+    postedDate: item.createdAt || new Date().toISOString(),
+  };
+}
+
+export async function fetchPropertiesFromBackend(
+  filters?: PropertyFilterState,
+  options?: { page?: number; pageSize?: number }
+): Promise<{ success: boolean; properties?: Property[]; totalCount?: number; error?: string }> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.city && filters.city !== 'All Cities') params.append('city', filters.city);
+    if (filters?.locality && filters.locality !== 'All Localities') params.append('locality', filters.locality);
+    if (filters?.category && filters.category !== 'all') params.append('category', filters.category);
+    if (filters?.roomType && filters.roomType !== 'all') params.append('roomType', filters.roomType);
+    if (filters?.maxBudget) params.append('maxRent', filters.maxBudget.toString());
+    if (filters?.furnishing && filters.furnishing !== 'all') params.append('furnishing', filters.furnishing);
+    if (filters?.genderPreference && filters.genderPreference !== 'all') params.append('genderPreference', filters.genderPreference);
+    if (filters?.mealsOffered && filters.mealsOffered !== 'any') params.append('mealsOffered', filters.mealsOffered);
+    if (options?.page) params.append('page', options.page.toString());
+    if (options?.pageSize) params.append('limit', options.pageSize.toString());
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiClient.get<{ data: any[]; pagination: { total: number } }>(`/properties${qs}`);
+    const properties = (res.data || []).map(mapBackendPropertyToApp);
+    return { success: true, properties, totalCount: res.pagination?.total ?? properties.length };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch properties from backend';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchFlatmatesFromBackend(
+  query?: { city?: string; locality?: string; gender?: string; maxBudget?: number; page?: number; limit?: number }
+): Promise<{ success: boolean; flatmates: Flatmate[]; totalCount?: number; error?: string }> {
+  try {
+    const params = new URLSearchParams();
+    if (query?.city && query.city !== 'All Cities') params.append('city', query.city);
+    if (query?.locality && query.locality !== 'All Localities') params.append('locality', query.locality);
+    if (query?.gender && query.gender !== 'all') params.append('gender', query.gender);
+    if (query?.maxBudget) params.append('maxBudget', query.maxBudget.toString());
+    if (query?.page) params.append('page', query.page.toString());
+    if (query?.limit) params.append('limit', query.limit.toString());
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiClient.get<{ data: any[]; pagination: { total: number } }>(`/flatmates${qs}`);
+    const flatmates = (res.data || []).map(mapBackendFlatmateToApp);
+    return { success: true, flatmates, totalCount: res.pagination?.total ?? flatmates.length };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch flatmates from backend';
+    return { success: false, flatmates: [], error: message };
+  }
+}
+
+export async function fetchFamilyStaysFromBackend(
+  filters?: PropertyFilterState,
+  options?: { page?: number; pageSize?: number }
+): Promise<{ success: boolean; familyStays: Property[]; totalCount?: number; error?: string }> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.city && filters.city !== 'All Cities') params.append('city', filters.city);
+    if (filters?.mealsOffered && filters.mealsOffered !== 'any') params.append('mealsOffered', filters.mealsOffered);
+    if (filters?.maxBudget) params.append('maxRent', filters.maxBudget.toString());
+    if (options?.page) params.append('page', options.page.toString());
+    if (options?.pageSize) params.append('limit', options.pageSize.toString());
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiClient.get<{ data: any[]; pagination: { total: number } }>(`/family-stays${qs}`);
+    const familyStays = (res.data || []).map(mapBackendPropertyToApp);
+    return { success: true, familyStays, totalCount: res.pagination?.total ?? familyStays.length };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch family stays from backend';
+    return { success: false, familyStays: [], error: message };
+  }
+}
+
+export async function createPropertyInBackend(
+  property: Partial<Property>
+): Promise<{ success: boolean; property?: Property; errors?: string[] }> {
+  try {
+    const payload = {
+      title: property.title,
+      description: property.description,
+      category: property.category || 'flats_rooms',
+      propertyType: property.propertyType || 'apartment',
+      roomType: property.roomType || 'private_room',
+      furnishing: property.furnishing || 'semi_furnished',
+      locality: property.locality,
+      city: property.city,
+      state: property.state || 'Delhi NCR',
+      pincode: property.pincode || null,
+      addressShort: property.addressShort || `${property.locality}, ${property.city}`,
+      rentAmount: property.rent || 0,
+      depositAmount: property.deposit || 0,
+      maintenanceCharge: property.maintenance || 0,
+      electricityRatePerUnit: property.electricityPerUnit || null,
+      brokerageFee: property.brokerageFee || 0,
+      providerType: property.providerType || 'owner',
+      genderPreference: property.genderPreference || 'any',
+      bedrooms: property.bedrooms || 1,
+      bathrooms: property.bathrooms || 1,
+      availableFrom: property.availableFrom || 'Immediately',
+      amenities: property.amenities || [],
+      houseRules: property.rules || [],
+      familyLivesOnProperty: Boolean(property.familyLivesOnProperty),
+      mealsOffered: property.mealsOffered || 'none',
+      optionalMealCost: property.optionalMealCost || null,
+      photoUrls: (property.images || []).map((url, idx) => ({ photoUrl: url, isPrimary: idx === 0 })),
+    };
+
+    const created = await apiClient.post<any>('/properties', payload);
+    return { success: true, property: mapBackendPropertyToApp(created) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Property creation failed';
+    return { success: false, errors: [message] };
+  }
+}
+
+export async function moderatePropertyInBackend(
+  propertyId: string,
+  status: 'active' | 'rejected' | 'paused',
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.patch(`/properties/${propertyId}/moderate`, { status, reason });
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Moderation failed';
+    return { success: false, error: message };
+  }
+}
+
+export async function sendInquiryToBackend(
+  targetId: string,
+  targetType: 'property' | 'flatmate',
+  message: string,
+  moveInDate?: string,
+  contactPhone?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/inquiries', {
+      propertyId: targetType === 'property' ? targetId : null,
+      flatmateProfileId: targetType === 'flatmate' ? targetId : null,
+      message,
+      proposedMoveInDate: moveInDate || null,
+      contactPhone: contactPhone || null,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to submit inquiry';
+    return { success: false, error: message };
+  }
+}
+
+export async function submitPropertyVerification(
+  propertyId: string,
+  input: {
+    documentType: string;
+    documentUrl: string;
+    ownershipType?: string;
+    notes?: string;
+  }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await apiClient.post(`/properties/${propertyId}/verification`, input);
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to submit verification';
+    return { success: false, error: message };
+  }
+}
+
+export async function getPropertyVerification(
+  propertyId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await apiClient.get(`/properties/${propertyId}/verification`);
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to get verification';
+    return { success: false, error: message };
+  }
+}
+
+export async function reviewPropertyVerification(
+  propertyId: string,
+  input: {
+    status: 'verified' | 'rejected' | 'pending';
+    reviewNotes?: string;
+    rejectionReason?: string;
+  }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await apiClient.patch(`/properties/${propertyId}/verification/review`, input);
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to review verification';
+    return { success: false, error: message };
+  }
+}
+
+export async function getLandmarks(
+  city?: string,
+  lat?: number,
+  lng?: number,
+  radiusKm = 10
+): Promise<any[]> {
+  try {
+    const params = new URLSearchParams();
+    if (city) params.append('city', city);
+    if (lat !== undefined && lng !== undefined) {
+      params.append('lat', String(lat));
+      params.append('lng', String(lng));
+      params.append('radiusKm', String(radiusKm));
+    }
+    return await apiClient.get<any[]>(`/locations/landmarks?${params.toString()}`);
+  } catch {
+    return [];
   }
 }

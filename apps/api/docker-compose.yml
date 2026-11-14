@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aashvo-local-postgres16
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: aashvo_local_dev_only
+      POSTGRES_DB: aashvo_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aashvo_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - aashvo_pg16_data:/var/lib/postgresql/data
+
+volumes:
+  aashvo_pg16_data:
+

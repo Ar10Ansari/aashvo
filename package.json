@@ -3,17 +3,26 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/api",
+    "packages/contracts"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run contracts:build && tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run src",
+    "test:watch": "vitest src",
+    "contracts:build": "npm --workspace=packages/contracts run build",
+    "api:dev": "npm --workspace=apps/api run start:dev",
+    "api:build": "npm --workspace=apps/api run build",
+    "api:test": "npm --workspace=apps/api test",
+    "api:prisma:validate": "npm --workspace=apps/api run prisma:validate",
+    "api:openapi": "npm --workspace=apps/api run openapi:generate"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
-    "framer-motion": "^11.18.2",
     "lucide-react": "^0.474.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -29,7 +38,7 @@
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.7.2",
-    "vite": "^6.0.11",
+    "vite": "^6.4.6",
     "vitest": "^5.0.5"
   }
 }

@@ -197,6 +197,7 @@ export function mapSupabaseReportToApp(row: Record<string, any>): SafetyReport {
   return {
     id: row.id,
     reporterId: row.reporter_id,
+    reporterName: row.reporter_name || undefined,
     reporterEmail: row.reporter_email,
     targetType: row.target_type,
     targetId,
@@ -207,7 +208,10 @@ export function mapSupabaseReportToApp(row: Record<string, any>): SafetyReport {
     evidenceUrl: row.evidence_url,
     priority: row.priority || 'normal',
     status: row.status || 'pending',
+    adminNotes: row.admin_notes || undefined,
     createdAt: row.created_at,
+    reviewedAt: row.reviewed_at || undefined,
+    reviewedBy: row.reviewed_by || undefined,
   };
 }
 
@@ -250,6 +254,7 @@ export function mapAppFlatmateToSupabaseInsert(flatmate: Partial<Flatmate>, user
     target_localities: flatmate.targetLocalities && flatmate.targetLocalities.length > 0
       ? flatmate.targetLocalities
       : ['All Localities'],
+    city: flatmate.city?.trim() || null,
     budget_max: flatmate.budgetMax || 25000,
     food_habit: flatmate.foodHabit || 'Vegetarian',
     sleep_routine: flatmate.sleepRoutine || 'Flexible',

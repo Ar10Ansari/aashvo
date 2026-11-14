@@ -12,6 +12,7 @@
 
 import { User, ActionType, ProgressiveProfileRequirement, ProviderType, MealsOffered } from '../types';
 import { supabase, isLiveBackendConfigured, mapSupabaseProfileToUser } from './supabase';
+import { apiClient, ApiError } from './apiClient';
 
 export interface OAuthInitiateOptions {
   provider: 'google';
@@ -841,6 +842,167 @@ export async function signOutWithSupabase(): Promise<{ success: boolean; error?:
     }
   }
   return { success: true };
+}
+
+// ============================================================================
+// INDEPENDENT NESTJS BACKEND AUTHENTICATION (POSTGRESQL 16 & ARGON2ID)
+// ============================================================================
+
+export async function signInWithBackend(
+  email: string,
+  password: string
+): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+  locked?: boolean;
+}> {
+  try {
+    const data = await apiClient.post<{
+      accessToken: string;
+      expiresIn: number;
+      user: {
+        id: string;
+        email: string;
+        role: string;
+        accountStatus: string;
+        emailVerified: boolean;
+        phoneVerified: boolean;
+      };
+    }>('/auth/login', { email: email.trim().toLowerCase(), password });
+
+    apiClient.setAccessToken(data.accessToken);
+
+    let fullName = data.user.email.split('@')[0];
+    try {
+      const profile = await apiClient.get<{ fullName?: string }>('/profiles/me');
+      if (profile.fullName) fullName = profile.fullName;
+    } catch {
+      // Profile fetch optional
+    }
+
+    const appUser: User = {
+      id: data.user.id,
+      name: fullName,
+      email: data.user.email,
+      role: data.user.role as User['role'],
+      emailVerified: data.user.emailVerified,
+      phoneVerified: data.user.phoneVerified,
+      accountStatus: data.user.accountStatus === 'active' ? 'active' : 'suspended',
+      authProvider: 'email',
+    };
+
+    return { success: true, user: appUser };
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.code === 'ACCOUNT_LOCKED') {
+      return {
+        success: false,
+        error: 'Account temporarily locked due to multiple failed login attempts. Please wait 15 minutes or reset your password.',
+        locked: true,
+      };
+    }
+    const message = err instanceof Error ? err.message : 'Invalid email or password. Please try again.';
+    return { success: false, error: message };
+  }
+}
+
+export async function signUpWithBackend(
+  params: EmailSignUpParams,
+  accountType: 'renter' | 'owner' = 'renter'
+): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+}> {
+  try {
+    const data = await apiClient.post<{
+      accessToken: string;
+      expiresIn: number;
+      user: {
+        id: string;
+        email: string;
+        role: string;
+        accountStatus: string;
+        emailVerified: boolean;
+        phoneVerified: boolean;
+      };
+    }>('/auth/register', {
+      email: params.email.trim().toLowerCase(),
+      password: params.password,
+      fullName: params.fullName.trim(),
+      accountType,
+    });
+
+    apiClient.setAccessToken(data.accessToken);
+
+    const appUser: User = {
+      id: data.user.id,
+      name: params.fullName.trim(),
+      email: data.user.email,
+      role: data.user.role as User['role'],
+      emailVerified: data.user.emailVerified,
+      phoneVerified: data.user.phoneVerified,
+      accountStatus: data.user.accountStatus === 'active' ? 'active' : 'suspended',
+      authProvider: 'email',
+    };
+
+    return { success: true, user: appUser };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Registration failed. Please check your details.';
+    return { success: false, error: message };
+  }
+}
+
+export async function signOutWithBackend(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/auth/logout');
+  } catch {
+    // Ignore network error on logout
+  } finally {
+    apiClient.clearSession();
+  }
+  return { success: true };
+}
+
+export async function signOutAllWithBackend(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/auth/logout-all');
+  } catch {
+    // Ignore error
+  } finally {
+    apiClient.clearSession();
+  }
+  return { success: true };
+}
+
+export async function forgotPasswordWithBackend(email: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/auth/forgot-password', { email: email.trim().toLowerCase() });
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to request password reset';
+    return { success: false, error: message };
+  }
+}
+
+export async function resetPasswordWithBackend(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/auth/reset-password', { token, newPassword });
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to reset password';
+    return { success: false, error: message };
+  }
+}
+
+export async function verifyEmailWithBackend(token: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.post('/auth/verify-email', { token });
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Verification token invalid or expired';
+    return { success: false, error: message };
+  }
 }
 
 /**

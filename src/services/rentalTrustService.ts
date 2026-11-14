@@ -10,6 +10,7 @@
  */
 
 import { supabase, isLiveBackendConfigured } from './supabase';
+import { apiClient } from './apiClient';
 import {
   TenancyAgreement,
   RentPaymentRecord,
@@ -176,105 +177,105 @@ let mockDisputes = [...SEED_DISPUTES];
 export function mapDbAgreementToApp(row: any): TenancyAgreement {
   return {
     id: row.id,
-    propertyId: row.property_id,
-    propertyTitle: row.properties?.title || row.property_title || 'Aashvo Verified Property',
-    propertyLocality: row.properties?.locality || row.property_locality || 'Delhi NCR',
-    landlordId: row.landlord_id,
-    landlordName: row.landlord?.full_name || 'Verified Landlord',
-    landlordEmail: row.landlord?.email,
-    tenantId: row.tenant_id,
-    tenantName: row.tenant?.full_name || 'Verified Tenant',
-    tenantEmail: row.tenant?.email,
-    monthlyRent: Number(row.monthly_rent || 0),
-    securityDeposit: Number(row.security_deposit || 0),
-    startDate: row.start_date,
-    endDate: row.end_date,
-    agreementStatus: row.agreement_status || 'draft',
-    documentUrl: row.document_url,
-    termsSummary: row.terms_summary,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    propertyId: row.propertyId || row.property_id,
+    propertyTitle: row.property?.title || row.properties?.title || row.propertyTitle || row.property_title || 'Aashvo Verified Property',
+    propertyLocality: row.property?.locality || row.properties?.locality || row.propertyLocality || row.property_locality || 'Delhi NCR',
+    landlordId: row.landlordId || row.landlord_id,
+    landlordName: row.landlord?.fullName || row.landlord?.full_name || row.landlordName || 'Verified Landlord',
+    landlordEmail: row.landlord?.email || row.landlordEmail,
+    tenantId: row.tenantId || row.tenant_id,
+    tenantName: row.tenant?.fullName || row.tenant?.full_name || row.tenantName || 'Verified Tenant',
+    tenantEmail: row.tenant?.email || row.tenantEmail,
+    monthlyRent: Number(row.monthlyRent ?? row.monthly_rent ?? 0),
+    securityDeposit: Number(row.securityDeposit ?? row.security_deposit ?? 0),
+    startDate: row.startDate || row.start_date,
+    endDate: row.endDate || row.end_date,
+    agreementStatus: row.agreementStatus || row.agreement_status || 'draft',
+    documentUrl: row.documentUrl || row.document_url,
+    termsSummary: row.termsSummary || row.terms_summary,
+    createdAt: row.createdAt || row.created_at,
+    updatedAt: row.updatedAt || row.updated_at,
   };
 }
 
 export function mapDbPaymentToApp(row: any): RentPaymentRecord {
   return {
     id: row.id,
-    agreementId: row.agreement_id,
-    payerId: row.payer_id,
-    payerName: row.payer?.full_name || 'Tenant',
-    recipientId: row.recipient_id,
-    recipientName: row.recipient?.full_name || 'Landlord',
+    agreementId: row.agreementId || row.agreement_id,
+    payerId: row.payerId || row.payer_id,
+    payerName: row.payer?.fullName || row.payer?.full_name || 'Tenant',
+    recipientId: row.recipientId || row.recipient_id,
+    recipientName: row.recipient?.fullName || row.recipient?.full_name || 'Landlord',
     amount: Number(row.amount || 0),
-    paymentCategory: row.payment_category || 'rent',
-    paymentDate: row.payment_date,
-    receiptUrl: row.receipt_url,
-    transactionReference: row.transaction_reference,
-    verificationStatus: row.verification_status || 'pending_confirmation',
+    paymentCategory: row.paymentCategory || row.payment_category || 'rent',
+    paymentDate: row.paymentDate || row.payment_date,
+    receiptUrl: row.receiptUrl || row.receipt_url,
+    transactionReference: row.transactionReference || row.transaction_reference,
+    verificationStatus: row.verificationStatus || row.verification_status || 'pending_confirmation',
     notes: row.notes,
-    createdAt: row.created_at,
+    createdAt: row.createdAt || row.created_at,
   };
 }
 
 export function mapDbInspectionToApp(row: any): PropertyInspection {
   return {
     id: row.id,
-    agreementId: row.agreement_id,
-    inspectionType: row.inspection_type,
-    conductedBy: row.conducted_by,
-    conductedByName: row.conductor?.full_name || 'Inspector',
-    inspectionDate: row.inspection_date,
-    roomName: row.room_name,
-    conditionRating: row.condition_rating,
-    damageNotes: row.damage_notes,
-    photoUrls: row.photo_urls || [],
-    acknowledgedByCounterparty: Boolean(row.acknowledged_by_counterparty),
-    acknowledgedAt: row.acknowledged_at,
-    createdAt: row.created_at,
+    agreementId: row.agreementId || row.agreement_id,
+    inspectionType: row.inspectionType || row.inspection_type,
+    conductedBy: row.conductedBy || row.conducted_by,
+    conductedByName: row.conductor?.fullName || row.conductor?.full_name || 'Inspector',
+    inspectionDate: row.inspectionDate || row.inspection_date,
+    roomName: row.roomName || row.room_name,
+    conditionRating: row.conditionRating || row.condition_rating,
+    damageNotes: row.damageNotes || row.damage_notes,
+    photoUrls: row.photoUrls || row.photo_urls || [],
+    acknowledgedByCounterparty: Boolean(row.acknowledgedByCounterparty ?? row.acknowledged_by_counterparty),
+    acknowledgedAt: row.acknowledgedAt || row.acknowledged_at,
+    createdAt: row.createdAt || row.created_at,
   };
 }
 
 export function mapDbReviewToApp(row: any): TenancyReview {
   return {
     id: row.id,
-    agreementId: row.agreement_id,
-    reviewerId: row.reviewer_id,
-    reviewerName: row.reviewer?.full_name || 'Verified User',
-    reviewerRole: row.reviewer_role,
-    revieweeId: row.reviewee_id,
-    revieweeName: row.reviewee?.full_name || 'Counterparty',
-    communicationRating: Number(row.communication_rating),
-    maintenanceRating: Number(row.maintenance_rating),
-    propertyCareRating: Number(row.property_care_rating),
-    agreementClarityRating: Number(row.agreement_clarity_rating),
-    overallRating: Number(row.overall_rating),
-    reviewTitle: row.review_title,
-    reviewContent: row.review_content,
-    isPublic: Boolean(row.is_public),
-    moderationStatus: row.moderation_status,
-    createdAt: row.created_at,
+    agreementId: row.agreementId || row.agreement_id,
+    reviewerId: row.reviewerId || row.reviewer_id,
+    reviewerName: row.reviewer?.fullName || row.reviewer?.full_name || 'Verified User',
+    reviewerRole: row.reviewerRole || row.reviewer_role,
+    revieweeId: row.revieweeId || row.reviewee_id,
+    revieweeName: row.reviewee?.fullName || row.reviewee?.full_name || 'Counterparty',
+    communicationRating: Number(row.communicationRating ?? row.communication_rating),
+    maintenanceRating: Number(row.maintenanceRating ?? row.maintenance_rating),
+    propertyCareRating: Number(row.propertyCareRating ?? row.property_care_rating),
+    agreementClarityRating: Number(row.agreementClarityRating ?? row.agreement_clarity_rating),
+    overallRating: Number(row.overallRating ?? row.overall_rating),
+    reviewTitle: row.reviewTitle || row.review_title,
+    reviewContent: row.reviewContent || row.review_content,
+    isPublic: Boolean(row.isPublic ?? row.is_public),
+    moderationStatus: row.moderationStatus || row.moderation_status,
+    createdAt: row.createdAt || row.created_at,
   };
 }
 
 export function mapDbDisputeToApp(row: any): RentalDispute {
   return {
     id: row.id,
-    disputeNumber: row.dispute_number,
-    agreementId: row.agreement_id,
-    initiatorId: row.initiator_id,
-    initiatorName: row.initiator?.full_name || 'Initiator',
-    respondentId: row.respondent_id,
-    respondentName: row.respondent?.full_name || 'Respondent',
-    disputeType: row.dispute_type,
-    disputedAmount: Number(row.disputed_amount || 0),
+    disputeNumber: row.disputeNumber || row.dispute_number,
+    agreementId: row.agreementId || row.agreement_id,
+    initiatorId: row.initiatorId || row.initiator_id,
+    initiatorName: row.initiator?.fullName || row.initiator?.full_name || 'Initiator',
+    respondentId: row.respondentId || row.respondent_id,
+    respondentName: row.respondent?.fullName || row.respondent?.full_name || 'Respondent',
+    disputeType: row.disputeType || row.dispute_type,
+    disputedAmount: Number(row.disputedAmount ?? row.disputed_amount ?? 0),
     title: row.title,
     description: row.description,
     status: row.status,
-    evidenceUrls: row.evidence_urls || [],
-    resolutionSummary: row.resolution_summary,
-    assignedModeratorId: row.assigned_moderator_id,
-    createdAt: row.created_at,
-    resolvedAt: row.resolved_at,
+    evidenceUrls: row.evidenceUrls || row.evidence_urls || [],
+    resolutionSummary: row.resolutionSummary || row.resolution_summary,
+    assignedModeratorId: row.assignedModeratorId || row.assigned_moderator_id,
+    createdAt: row.createdAt || row.created_at,
+    resolvedAt: row.resolvedAt || row.resolved_at,
   };
 }
 
@@ -954,4 +955,225 @@ export async function updateDisputeStatus(
     d.resolvedAt = new Date().toISOString();
   }
   return { success: true, isDemo: true };
+}
+
+export async function createInspectionInBackend(payload: {
+  agreementId: string;
+  inspectionType: 'move_in' | 'move_out' | 'routine';
+  roomName: string;
+  conditionRating: 'pristine' | 'good' | 'fair' | 'poor' | 'damaged';
+  damageNotes?: string;
+  photoUrls?: string[];
+  meterReadings?: {
+    electricityKwh?: number;
+    waterKl?: number;
+    gasUnits?: number;
+    recordedAt?: string;
+  };
+  inventory?: Array<{
+    item: string;
+    quantity: number;
+    condition: string;
+    notes?: string;
+  }>;
+  keyHandoverConfirmed?: boolean;
+  depositConfirmed?: boolean;
+}): Promise<{ success: boolean; inspection?: any; error?: string }> {
+  try {
+    const res = await apiClient.post<any>('/inspections', payload);
+    return { success: true, inspection: res };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to record inspection';
+    return { success: false, error: message };
+  }
+}
+
+export async function acknowledgeInspectionInBackend(
+  inspectionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.patch(`/inspections/${inspectionId}/acknowledge`);
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to acknowledge inspection';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchAgreementsFromBackend(): Promise<{
+  success: boolean;
+  agreements: TenancyAgreement[];
+  error?: string;
+}> {
+  try {
+    const res = await apiClient.get<any[]>('/agreements/mine');
+    return { success: true, agreements: (res || []).map(mapDbAgreementToApp) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load tenancy agreements';
+    return { success: false, agreements: [], error: message };
+  }
+}
+
+export async function createAgreementInBackend(dto: {
+  tenantProfileId: string;
+  propertyId: string;
+  monthlyRent: number;
+  securityDeposit: number;
+  maintenanceCharges?: number;
+  startDate: string;
+  endDate: string;
+  noticePeriodDays?: number;
+  lockInPeriodMonths?: number;
+  termsSummary?: string;
+  documentUrl?: string;
+}): Promise<{ success: boolean; agreement?: TenancyAgreement; error?: string }> {
+  try {
+    const res = await apiClient.post<any>('/agreements', dto);
+    return { success: true, agreement: mapDbAgreementToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to create agreement';
+    return { success: false, error: message };
+  }
+}
+
+export async function updateAgreementStatusInBackend(
+  agreementId: string,
+  status: 'active' | 'terminated' | 'expired',
+  reason?: string
+): Promise<{ success: boolean; agreement?: TenancyAgreement; error?: string }> {
+  try {
+    const res = await apiClient.patch<any>(`/agreements/${agreementId}/status`, { status, reason });
+    return { success: true, agreement: mapDbAgreementToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update agreement status';
+    return { success: false, error: message };
+  }
+}
+
+export async function recordPaymentInBackend(
+  agreementId: string,
+  dto: {
+    amount: number;
+    paymentCategory: 'rent' | 'security_deposit' | 'maintenance' | 'utility' | 'other';
+    paymentDate: string;
+    transactionReference?: string;
+    receiptUrl?: string;
+    notes?: string;
+  }
+): Promise<{ success: boolean; payment?: RentPaymentRecord; error?: string }> {
+  try {
+    const res = await apiClient.post<any>(`/agreements/${agreementId}/payments`, dto);
+    return { success: true, payment: mapDbPaymentToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to record payment';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchDisputesFromBackend(): Promise<{
+  success: boolean;
+  disputes: RentalDispute[];
+  error?: string;
+}> {
+  try {
+    const res = await apiClient.get<any[]>('/disputes/mine');
+    return { success: true, disputes: (res || []).map(mapDbDisputeToApp) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load disputes';
+    return { success: false, disputes: [], error: message };
+  }
+}
+
+export async function createDisputeInBackend(dto: {
+  agreementId: string;
+  disputeType: 'deposit_deduction' | 'unauthorized_rent_hike' | 'maintenance_negligence' | 'early_termination' | 'amenity_failure' | 'other';
+  disputedAmount?: number;
+  title: string;
+  description: string;
+  evidenceUrls?: string[];
+}): Promise<{ success: boolean; dispute?: RentalDispute; error?: string }> {
+  try {
+    const res = await apiClient.post<any>('/disputes', dto);
+    return { success: true, dispute: mapDbDisputeToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to create dispute';
+    return { success: false, error: message };
+  }
+}
+
+export async function resolveDisputeInBackend(
+  disputeId: string,
+  dto: {
+    status: 'resolved' | 'escalated' | 'dismissed';
+    resolutionSummary: string;
+  }
+): Promise<{ success: boolean; dispute?: RentalDispute; error?: string }> {
+  try {
+    const res = await apiClient.patch<any>(`/disputes/${disputeId}/resolve`, dto);
+    return { success: true, dispute: mapDbDisputeToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to resolve dispute';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchPropertyReviewsFromBackend(
+  propertyId: string
+): Promise<{ success: boolean; reviews: TenancyReview[]; error?: string }> {
+  try {
+    const res = await apiClient.get<any[]>(`/reviews/property/${propertyId}`);
+    return { success: true, reviews: (res || []).map(mapDbReviewToApp) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load property reviews';
+    return { success: false, reviews: [], error: message };
+  }
+}
+
+export async function fetchProfileReviewsFromBackend(
+  profileId: string
+): Promise<{ success: boolean; reviews: TenancyReview[]; error?: string }> {
+  try {
+    const res = await apiClient.get<any[]>(`/reviews/profile/${profileId}`);
+    return { success: true, reviews: (res || []).map(mapDbReviewToApp) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load profile reviews';
+    return { success: false, reviews: [], error: message };
+  }
+}
+
+export async function createReviewInBackend(dto: {
+  agreementId: string;
+  revieweeId: string;
+  communicationRating: number;
+  maintenanceRating: number;
+  propertyCareRating: number;
+  agreementClarityRating: number;
+  overallRating: number;
+  reviewTitle?: string;
+  reviewContent?: string;
+  isPublic?: boolean;
+}): Promise<{ success: boolean; review?: TenancyReview; error?: string }> {
+  try {
+    const res = await apiClient.post<any>('/reviews', dto);
+    return { success: true, review: mapDbReviewToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to submit review';
+    return { success: false, error: message };
+  }
+}
+
+export async function moderateReviewInBackend(
+  reviewId: string,
+  dto: {
+    status: 'approved' | 'rejected' | 'flagged';
+    reason?: string;
+  }
+): Promise<{ success: boolean; review?: TenancyReview; error?: string }> {
+  try {
+    const res = await apiClient.patch<any>(`/reviews/${reviewId}/moderate`, dto);
+    return { success: true, review: mapDbReviewToApp(res) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to moderate review';
+    return { success: false, error: message };
+  }
 }
