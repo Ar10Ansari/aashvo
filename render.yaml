@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
+    buildCommand: npm ci --include=dev && npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
     startCommand: npm --workspace=apps/api run start
     healthCheckPath: /api/v1/health/live
     autoDeploy: true
