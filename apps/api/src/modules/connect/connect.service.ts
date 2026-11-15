@@ -3,6 +3,7 @@ import {
   type CleanlinessLevel as ContractCleanlinessLevel,
   type CompatibilityBreakdown,
   type ConnectCandidateView,
+  type ConnectLikeItem,
   type ConnectMatchItem,
   type ConnectMessageItem,
   type ConnectSwipeResponse,
@@ -184,6 +185,7 @@ export class ConnectService {
       ...(excludedIds.length > 0 ? { userId: { notIn: excludedIds } } : {}),
       age: { gte: 18 },
       discoveryHidden: false,
+      isPublished: true,
       profile: {
         user: {
           accountStatus: 'active',
@@ -989,4 +991,116 @@ export class ConnectService {
       hasRoom: updated.hasRoom,
     };
   }
+
+  /**
+   * Retrieves all incoming likes received by the caller.
+   */
+  async getIncomingLikes(callerId: string): Promise<ConnectLikeItem[]> {
+    const likes = await this.prisma.flatmateInterest.findMany({
+      where: {
+        targetUserId: callerId,
+        interestType: FlatmateInterestType.like,
+      },
+      include: {
+        sender: {
+          include: {
+            flatmateProfile: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return likes
+      .filter((l) => l.sender.flatmateProfile && l.sender.flatmateProfile.isPublished)
+      .map((l) => ({
+        id: l.id,
+        userId: l.senderId,
+        displayName: l.sender.fullName.split(' ')[0],
+        avatarUrl: l.sender.avatarUrl,
+        city: l.sender.flatmateProfile?.city || 'Gurugram',
+        occupation: l.sender.flatmateProfile?.occupation || 'Flatmate',
+        budgetMax: Number(l.sender.flatmateProfile?.budgetMax || 0),
+        createdAt: l.createdAt.toISOString(),
+      }));
+  }
+
+  /**
+   * Retrieves all outgoing likes sent by the caller.
+   */
+  async getOutgoingLikes(callerId: string): Promise<ConnectLikeItem[]> {
+    const likes = await this.prisma.flatmateInterest.findMany({
+      where: {
+        senderId: callerId,
+        interestType: FlatmateInterestType.like,
+      },
+      include: {
+        targetUser: {
+          include: {
+            flatmateProfile: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return likes
+      .filter((l) => l.targetUser.flatmateProfile && l.targetUser.flatmateProfile.isPublished)
+      .map((l) => ({
+        id: l.id,
+        userId: l.targetUserId,
+        displayName: l.targetUser.fullName.split(' ')[0],
+        avatarUrl: l.targetUser.avatarUrl,
+        city: l.targetUser.flatmateProfile?.city || 'Gurugram',
+        occupation: l.targetUser.flatmateProfile?.occupation || 'Flatmate',
+        budgetMax: Number(l.targetUser.flatmateProfile?.budgetMax || 0),
+        createdAt: l.createdAt.toISOString(),
+      }));
+  }
+
+  /**
+   * Unmatches an active match.
+   */
+  async unmatch(
+    callerId: string,
+    matchId: string,
+    reason?: string,
+  ): Promise<{ success: boolean; matchId: string }> {
+    const match = await this.prisma.flatmateMatch.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match) {
+      throw new NotFoundException({
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Match not found.',
+      });
+    }
+
+    if (match.user1Id !== callerId && match.user2Id !== callerId) {
+      throw new ForbiddenException({
+        code: ERROR_CODES.FORBIDDEN,
+        message: 'You are not a participant in this mutual match.',
+      });
+    }
+
+    await this.prisma.flatmateMatch.update({
+      where: { id: matchId },
+      data: {
+        status: FlatmateMatchStatus.unmatched,
+      },
+    });
+
+    await this.audit.record({
+      actorId: callerId,
+      eventType: 'flatmate_match.unmatched',
+      entityType: 'flatmate_match',
+      entityId: matchId,
+      outcome: 'success',
+      metadata: { reason },
+    });
+
+    return { success: true, matchId };
+  }
 }
+

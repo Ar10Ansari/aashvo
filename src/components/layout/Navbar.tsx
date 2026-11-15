@@ -14,6 +14,7 @@ import {
   Compass,
   MessageSquare,
   Calendar,
+  User,
 } from 'lucide-react';
 import { isTrustedAdminSession } from '../../services/authorizationService';
 import { NotificationCenter } from '../notifications/NotificationCenter';
@@ -31,6 +32,12 @@ export const Navbar: React.FC = () => {
     openMyActivityModal,
     setIsCalculatorOpen,
     setIsSavedOpen,
+    marketplaceProfiles,
+    activeMarketplaceProfile,
+    switchMarketplaceProfile,
+    openMyProfileModal,
+    openOnboardingModal,
+    profileCompletion,
     currentUser,
     logout,
   } = useApp();
@@ -217,12 +224,85 @@ export const Navbar: React.FC = () => {
 
                 {profileDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-lg border border-charcoal-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-2 border-b border-charcoal-100">
-                      <p className="text-xs text-charcoal-400 uppercase tracking-wider font-semibold">Active Profile</p>
-                      <p className="text-sm font-semibold text-charcoal-800">{currentUser.name}</p>
-                      <span className="inline-block mt-1 text-xs bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full font-medium">
-                        Role: {currentUser.role.toUpperCase()}
-                      </span>
+                    {/* Account Identity & System Role */}
+                    <div className="px-4 py-2.5 border-b border-charcoal-100">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-charcoal-400 uppercase tracking-wider font-bold">Account</p>
+                        <span className="text-[10px] bg-charcoal-100 text-charcoal-700 px-2 py-0.5 rounded-full font-semibold uppercase">
+                          Role: {currentUser.role}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-charcoal-900 truncate mt-0.5">{currentUser.name}</p>
+                      <p className="text-xs text-charcoal-500 truncate">{currentUser.email}</p>
+
+                      {/* Active Marketplace Persona Pill */}
+                      <div className="mt-2.5 p-2 bg-forest-50/80 rounded-xl border border-forest-100/80 flex items-center justify-between">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-forest-700 font-bold">Active Persona</p>
+                          <p className="text-xs font-bold text-forest-900 capitalize">
+                            {activeMarketplaceProfile?.displayName || activeMarketplaceProfile?.profileType?.replace('_', ' ') || 'Flatmate Seeker'}
+                          </p>
+                        </div>
+                        <span className="text-[9px] bg-forest-700 text-white font-extrabold px-1.5 py-0.5 rounded">
+                          ACTIVE
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Persona Switcher Quick Actions */}
+                    {marketplaceProfiles && marketplaceProfiles.length > 1 && (
+                      <div className="px-4 py-2 border-b border-charcoal-100 bg-ivory-50/60">
+                        <p className="text-[10px] uppercase font-bold text-charcoal-400 mb-1.5">Switch Persona</p>
+                        <div className="space-y-1">
+                          {marketplaceProfiles
+                            .filter((p) => !p.isCurrentActive)
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={async () => {
+                                  await switchMarketplaceProfile(p.profileType);
+                                  setProfileDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-charcoal-700 hover:bg-forest-50 hover:text-forest-800 flex items-center justify-between transition-colors"
+                              >
+                                <span className="capitalize">{p.displayName || p.profileType.replace('_', ' ')}</span>
+                                <span className="text-[10px] text-forest-600 font-bold">Switch</span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* My Profile Navigation */}
+                    <div className="py-1 border-b border-charcoal-100">
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          openMyProfileModal();
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-forest-800 hover:bg-forest-50 flex items-center justify-between"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-forest-700" />
+                          <span>My Profile & Personas</span>
+                        </span>
+                        {profileCompletion && (
+                          <span className="text-[10px] bg-sand-200 text-forest-900 px-1.5 py-0.5 rounded-full font-bold">
+                            {profileCompletion.totalPercent}%
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          openOnboardingModal();
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs text-charcoal-700 hover:bg-ivory-100 flex items-center space-x-2 font-medium"
+                      >
+                        <PlusCircle className="w-4 h-4 text-forest-600" />
+                        <span>Edit / Complete Profile Flow</span>
+                      </button>
                     </div>
 
                     <div className="py-1">
@@ -525,11 +605,46 @@ export const Navbar: React.FC = () => {
             )}
 
             {currentUser ? (
-              <div className="space-y-1.5 pt-1">
-                <div className="w-full bg-ivory-300/80 text-charcoal-800 py-2.5 rounded-xl text-sm font-medium text-left px-4 flex items-center justify-between">
-                  <span className="truncate">Signed in: <strong>{currentUser.name}</strong></span>
-                  <span className="text-[10px] bg-forest-100 text-forest-800 px-2 py-0.5 rounded font-semibold ml-2 uppercase">{currentUser.role}</span>
+              <div className="space-y-2 pt-1">
+                <div className="w-full bg-ivory-300/80 text-charcoal-800 p-3 rounded-xl text-sm font-medium">
+                  <div className="flex items-center justify-between">
+                    <span className="truncate font-bold">{currentUser.name}</span>
+                    <span className="text-[10px] bg-forest-100 text-forest-800 px-2 py-0.5 rounded font-semibold ml-2 uppercase">
+                      {currentUser.role}
+                    </span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-charcoal-200/60 flex items-center justify-between">
+                    <span className="text-xs text-charcoal-600">Active Persona:</span>
+                    <span className="text-xs font-bold text-forest-800 capitalize">
+                      {activeMarketplaceProfile?.displayName || activeMarketplaceProfile?.profileType?.replace('_', ' ') || 'Flatmate Seeker'}
+                    </span>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      openMyProfileModal();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full bg-white border border-charcoal-200 text-forest-800 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5"
+                  >
+                    <User className="w-4 h-4 text-forest-700" />
+                    <span>My Profile</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      openOnboardingModal();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full bg-forest-700 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-sm"
+                  >
+                    <PlusCircle className="w-4 h-4 text-sand-300" />
+                    <span>Onboarding</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={() => {
                     logout();

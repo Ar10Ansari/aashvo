@@ -15,6 +15,7 @@ import { apiClient } from './apiClient';
 import { SEED_FLATMATES } from '../data/seedData';
 import type {
   ConnectCandidateView,
+  ConnectLikeItem,
   ConnectSwipeResponse,
   ConnectUndoResponse,
   ConnectMatchItem,
@@ -467,6 +468,43 @@ export const connectService = {
     } catch {
       demoHidden = discoveryHidden;
       return { discoveryHidden };
+    }
+  },
+
+  /**
+   * Retrieves all incoming likes received from other users.
+   */
+  async getIncomingLikes(): Promise<ConnectLikeItem[]> {
+    try {
+      return await apiClient.get<ConnectLikeItem[]>('/connect/likes/received');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Retrieves all outgoing likes sent by the current user.
+   */
+  async getOutgoingLikes(): Promise<ConnectLikeItem[]> {
+    try {
+      return await apiClient.get<ConnectLikeItem[]>('/connect/likes/sent');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Unmatches an active match.
+   */
+  async unmatch(matchId: string, reason?: string): Promise<{ success: boolean; matchId: string }> {
+    try {
+      return await apiClient.post<{ success: boolean; matchId: string }>(
+        `/connect/matches/${matchId}/unmatch`,
+        { reason },
+      );
+    } catch {
+      demoMatches = demoMatches.filter((m) => m.id !== matchId);
+      return { success: true, matchId };
     }
   },
 

@@ -55,6 +55,12 @@ import {
   ensureUserProfileExists,
   parseOAuthErrorFromUrl,
 } from '../services/authService';
+import { marketplaceProfileService } from '../services/marketplaceProfileService';
+import type {
+  MarketplaceProfileType,
+  MarketplaceProfileView,
+  ProfileCompletionBreakdown,
+} from '@aashvo/contracts';
 
 interface AppContextType {
   properties: Property[];
@@ -93,6 +99,20 @@ interface AppContextType {
   setIsCalculatorOpen: (open: boolean) => void;
   isSavedOpen: boolean;
   setIsSavedOpen: (open: boolean) => void;
+  // Marketplace Profiles & Progressive Onboarding
+  marketplaceProfiles: MarketplaceProfileView[];
+  activeMarketplaceProfile: MarketplaceProfileView | null;
+  switchMarketplaceProfile: (type: MarketplaceProfileType) => Promise<MarketplaceProfileView>;
+  refreshMarketplaceProfiles: () => Promise<void>;
+  isMyProfileOpen: boolean;
+  setIsMyProfileOpen: (open: boolean) => void;
+  openMyProfileModal: () => void;
+  isOnboardingOpen: boolean;
+  setIsOnboardingOpen: (open: boolean) => void;
+  openOnboardingModal: (initialStep?: number) => void;
+  onboardingInitialStep: number;
+  profileCompletion: ProfileCompletionBreakdown | null;
+  refreshProfileCompletion: () => Promise<void>;
   reportingTarget: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null;
   setReportingTarget: (target: { type: 'listing' | 'flatmate' | 'user'; id: string; title: string } | null) => void;
   currentUser: User | null;
@@ -176,6 +196,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
   const [isSavedOpen, setIsSavedOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Marketplace Profiles & Onboarding State
+  const [marketplaceProfiles, setMarketplaceProfiles] = useState<MarketplaceProfileView[]>([]);
+  const [isMyProfileOpen, setIsMyProfileOpen] = useState<boolean>(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
+  const [onboardingInitialStep, setOnboardingInitialStep] = useState<number>(1);
+  const [profileCompletion, setProfileCompletion] = useState<ProfileCompletionBreakdown | null>(null);
+
+  const activeMarketplaceProfile =
+    marketplaceProfiles.find((p) => p.isCurrentActive) || marketplaceProfiles[0] || null;
+
+  const refreshMarketplaceProfiles = async () => {
+    try {
+      const profiles = await marketplaceProfileService.getMyMarketplaceProfiles();
+      setMarketplaceProfiles(profiles);
+      const comp = await marketplaceProfileService.getProfileCompletion();
+      setProfileCompletion(comp);
+    } catch {
+      // Ignored
+    }
+  };
+
+  const refreshProfileCompletion = async () => {
+    try {
+      const comp = await marketplaceProfileService.getProfileCompletion();
+      setProfileCompletion(comp);
+    } catch {
+      // Ignored
+    }
+  };
+
+  const switchMarketplaceProfile = async (type: MarketplaceProfileType): Promise<MarketplaceProfileView> => {
+    const updated = await marketplaceProfileService.switchMarketplaceProfile(type);
+    await refreshMarketplaceProfiles();
+    return updated;
+  };
+
+  const openMyProfileModal = () => {
+    setIsMyProfileOpen(true);
+  };
+
+  const openOnboardingModal = (initialStep?: number) => {
+    if (initialStep !== undefined) {
+      setOnboardingInitialStep(initialStep);
+    }
+    setIsOnboardingOpen(true);
+  };
+
   const [reportingTarget, setReportingTarget] = useState<{
     type: 'listing' | 'flatmate' | 'user';
     id: string;
@@ -711,6 +779,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    if (currentUser) {
+      refreshMarketplaceProfiles();
+    }
+  }, [currentUser]);
+
   const loadPublicMarketplaceData = async () => {
     setIsLoadingData(true);
     setDataLoadError(null);
@@ -1059,6 +1133,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCalculatorOpen,
         isSavedOpen,
         setIsSavedOpen,
+        marketplaceProfiles,
+        activeMarketplaceProfile,
+        switchMarketplaceProfile,
+        refreshMarketplaceProfiles,
+        isMyProfileOpen,
+        setIsMyProfileOpen,
+        openMyProfileModal,
+        isOnboardingOpen,
+        setIsOnboardingOpen,
+        openOnboardingModal,
+        onboardingInitialStep,
+        profileCompletion,
+        refreshProfileCompletion,
         reportingTarget,
         setReportingTarget,
         currentUser,

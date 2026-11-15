@@ -30,7 +30,13 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
   onClose,
   initialTab = 'discover',
 }) => {
-  const { currentUser } = useApp();
+  const {
+    currentUser,
+    marketplaceProfiles,
+    profileCompletion,
+    openOnboardingModal,
+    openAuthModal,
+  } = useApp();
 
   const [activeTab, setActiveTab] = useState<'discover' | 'matches' | 'chat' | 'settings'>(initialTab);
 
@@ -142,6 +148,14 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
     const newMsg = await connectService.sendMessage(selectedMatch.id, content);
     setMessages((prev) => [...prev, newMsg]);
     loadMatches(); // Update snippet
+  };
+
+  // Handle Unmatching a Match
+  const handleUnmatch = async (matchId: string, reason?: string) => {
+    await connectService.unmatch(matchId, reason);
+    setMatches((prev) => prev.filter((m) => m.id !== matchId));
+    setSelectedMatch(null);
+    setActiveTab('matches');
   };
 
   // Handle Blocking a User
@@ -271,6 +285,11 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               isLoading={isLoadingDeck}
               selectedIntention={selectedIntentionFilter}
               onSelectIntention={handleSelectIntentionFilter}
+              currentUser={currentUser}
+              marketplaceProfiles={marketplaceProfiles}
+              profileCompletion={profileCompletion}
+              onOpenOnboarding={openOnboardingModal}
+              onOpenAuth={openAuthModal}
             />
           )}
 
@@ -298,6 +317,7 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               }}
               onBlockUser={handleBlockUser}
               onReportUser={handleReportUser}
+              onUnmatch={handleUnmatch}
             />
           )}
 

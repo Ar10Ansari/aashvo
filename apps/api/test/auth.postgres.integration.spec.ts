@@ -130,7 +130,7 @@ describe('PostgreSQL Schema Constraints & Authentication Security Integration', 
        FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'`,
     );
-    expect(Number(tableRows[0]?.count)).toBe(32);
+    expect(Number(tableRows[0]?.count)).toBe(33);
 
     const ownerId = randomUUID();
     await prisma.user.create({

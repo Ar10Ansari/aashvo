@@ -18,6 +18,8 @@ import { ConnectModal } from './components/connect/ConnectModal';
 import { RentSplitCalculatorModal } from './components/calculator/RentSplitCalculatorModal';
 import { SavedListingsModal } from './components/saved/SavedListingsModal';
 import { MyActivityModal } from './components/activity/MyActivityModal';
+import { OnboardingModal } from './components/onboarding/OnboardingModal';
+import { MyProfileModal } from './components/profile/MyProfileModal';
 import { Toast } from './components/ui/Toast';
 
 const MainLayout: React.FC = () => {
@@ -42,6 +44,12 @@ const MainLayout: React.FC = () => {
     isMyActivityOpen,
     setIsMyActivityOpen,
     myActivityInitialTab,
+    isMyProfileOpen,
+    setIsMyProfileOpen,
+    openOnboardingModal,
+    isOnboardingOpen,
+    setIsOnboardingOpen,
+    onboardingInitialStep,
     isCalculatorOpen,
     setIsCalculatorOpen,
     isSavedOpen,
@@ -141,6 +149,22 @@ const MainLayout: React.FC = () => {
           isOpen={isMyActivityOpen}
           onClose={() => setIsMyActivityOpen(false)}
           initialTab={myActivityInitialTab}
+        />
+      )}
+
+      {isMyProfileOpen && (
+        <MyProfileModal
+          isOpen={isMyProfileOpen}
+          onClose={() => setIsMyProfileOpen(false)}
+          onOpenOnboarding={(step) => openOnboardingModal(step)}
+        />
+      )}
+
+      {isOnboardingOpen && (
+        <OnboardingModal
+          isOpen={isOnboardingOpen}
+          onClose={() => setIsOnboardingOpen(false)}
+          initialStep={onboardingInitialStep}
         />
       )}
 

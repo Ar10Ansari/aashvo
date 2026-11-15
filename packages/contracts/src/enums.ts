@@ -157,6 +157,21 @@ export const NOTIFICATION_CATEGORIES = [
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
+export const MARKETPLACE_PROFILE_TYPES = [
+  'flatmate_seeker',
+  'property_owner',
+  'family_stay_host',
+  'family_stay_seeker',
+] as const;
+export type MarketplaceProfileType = (typeof MARKETPLACE_PROFILE_TYPES)[number];
+
+export const MARKETPLACE_PROFILE_STATUSES = [
+  'draft',
+  'active',
+  'paused',
+] as const;
+export type MarketplaceProfileStatus = (typeof MARKETPLACE_PROFILE_STATUSES)[number];
+
 
 
 

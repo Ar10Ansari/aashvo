@@ -73,11 +73,37 @@ export class ConnectController {
     return this.connectService.undo(user.id);
   }
 
+  @Get('likes/received')
+  @ApiOperation({ summary: 'Get all incoming likes received from other users' })
+  @ApiResponse({ status: 200, description: 'List of incoming likes' })
+  async getIncomingLikes(@CurrentUser() user: AuthenticatedUser) {
+    return this.connectService.getIncomingLikes(user.id);
+  }
+
+  @Get('likes/sent')
+  @ApiOperation({ summary: 'Get all outgoing likes sent by the current user' })
+  @ApiResponse({ status: 200, description: 'List of outgoing likes' })
+  async getOutgoingLikes(@CurrentUser() user: AuthenticatedUser) {
+    return this.connectService.getOutgoingLikes(user.id);
+  }
+
   @Get('matches')
   @ApiOperation({ summary: 'Get all active mutual flatmate matches for current user' })
   @ApiResponse({ status: 200, description: 'List of mutual matches' })
   async getMatches(@CurrentUser() user: AuthenticatedUser) {
     return this.connectService.getMatches(user.id);
+  }
+
+  @Post('matches/:id/unmatch')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unmatch an active mutual match' })
+  @ApiResponse({ status: 200, description: 'Successfully unmatched' })
+  async unmatch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.connectService.unmatch(user.id, id, reason);
   }
 
   @Get('matches/:id')

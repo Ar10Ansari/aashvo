@@ -3,7 +3,10 @@ import type {
   ConnectCandidateView,
   ConnectSwipeResponse,
   FlatmateIntention,
+  MarketplaceProfileView,
+  ProfileCompletionBreakdown,
 } from '@aashvo/contracts';
+import type { User } from '../../types';
 import { ConnectProfileCard } from './ConnectProfileCard';
 import {
   X,
@@ -11,6 +14,11 @@ import {
   RotateCcw,
   Sparkles,
   RefreshCw,
+  UserCheck,
+  FileText,
+  Lock,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ConnectSwipeDeckProps {
@@ -22,6 +30,11 @@ interface ConnectSwipeDeckProps {
   isLoading?: boolean;
   selectedIntention?: FlatmateIntention | 'all';
   onSelectIntention?: (intention: FlatmateIntention | 'all') => void;
+  currentUser?: User | null;
+  marketplaceProfiles?: MarketplaceProfileView[];
+  profileCompletion?: ProfileCompletionBreakdown | null;
+  onOpenOnboarding?: (step?: number) => void;
+  onOpenAuth?: (mode?: 'signin' | 'signup') => void;
 }
 
 export const ConnectSwipeDeck: React.FC<ConnectSwipeDeckProps> = ({
@@ -33,6 +46,11 @@ export const ConnectSwipeDeck: React.FC<ConnectSwipeDeckProps> = ({
   isLoading = false,
   selectedIntention = 'all',
   onSelectIntention,
+  currentUser,
+  marketplaceProfiles,
+  profileCompletion,
+  onOpenOnboarding,
+  onOpenAuth,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
@@ -155,6 +173,135 @@ export const ConnectSwipeDeck: React.FC<ConnectSwipeDeckProps> = ({
         <p className="text-xs text-charcoal-500 mt-1 max-w-xs">
           Computing 5-dimension lifestyle alignment across food, sleep, cleanliness, budget and interests.
         </p>
+      </div>
+    );
+  }
+
+  // Persona & Profile Gating Checks
+  const isAuthGated = currentUser !== undefined && currentUser === null;
+  const hasProfilesData = marketplaceProfiles !== undefined;
+  const flatmateProfile = marketplaceProfiles?.find(
+    (p) => p.profileType === 'flatmate_seeker'
+  );
+  const hasFlatmateProfile = !!flatmateProfile;
+  const isProfilePublished = flatmateProfile
+    ? flatmateProfile.status === 'active' || (profileCompletion?.isPublished === true)
+    : false;
+
+  // 1. Prompt unauthenticated users to sign in
+  if (isAuthGated) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[580px] p-8 text-center bg-white rounded-3xl border border-charcoal-200 shadow-md">
+        <div className="w-16 h-16 rounded-full bg-forest-50 text-forest-700 flex items-center justify-center mb-4">
+          <Lock className="w-8 h-8 text-sand-500" />
+        </div>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-sand-600 bg-sand-50 px-3 py-1 rounded-full mb-2">
+          Member Sign-in Required
+        </span>
+        <h3 className="font-serif text-2xl font-bold text-charcoal-900 mb-2">
+          Sign In to Access Connect
+        </h3>
+        <p className="text-xs sm:text-sm text-charcoal-600 max-w-md mb-6 leading-relaxed">
+          AASHVO Connect pairs verified college students and working professionals based on 5 lifestyle dimensions: food habits, sleep routines, cleanliness standards, budget, and shared interests.
+        </p>
+        <button
+          onClick={() => onOpenAuth?.('signin')}
+          className="px-6 py-3 rounded-full bg-forest-700 text-white text-xs sm:text-sm font-semibold hover:bg-forest-800 shadow-sm flex items-center space-x-2 transition-all hover:scale-105 active:scale-95"
+        >
+          <span>Sign In / Register</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  // 2. Prompt users without a flatmate profile to create one (Zero fake profile injection)
+  if (currentUser && hasProfilesData && !hasFlatmateProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[580px] p-8 text-center bg-white rounded-3xl border border-charcoal-200 shadow-md">
+        <div className="w-16 h-16 rounded-full bg-forest-50 text-forest-700 flex items-center justify-center mb-4">
+          <UserCheck className="w-8 h-8 text-forest-700" />
+        </div>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-forest-700 bg-forest-50 px-3 py-1 rounded-full mb-2 border border-forest-100">
+          Setup Required • 5-Step Flow
+        </span>
+        <h3 className="font-serif text-2xl font-bold text-charcoal-900 mb-2">
+          Create Your Flatmate Profile
+        </h3>
+        <p className="text-xs sm:text-sm text-charcoal-600 max-w-md mb-5 leading-relaxed">
+          You need an active flatmate profile to discover candidates and match with compatible roommates. Set up your lifestyle habits, budget, and preferences in under 2 minutes.
+        </p>
+        <div className="grid grid-cols-2 gap-2 max-w-sm w-full mb-6 text-left">
+          <div className="p-2.5 bg-ivory-100 rounded-xl border border-charcoal-100 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+            <span className="text-[11px] font-medium text-charcoal-700">5-dimension compatibility</span>
+          </div>
+          <div className="p-2.5 bg-ivory-100 rounded-xl border border-charcoal-100 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+            <span className="text-[11px] font-medium text-charcoal-700">Zero fake profiles</span>
+          </div>
+          <div className="p-2.5 bg-ivory-100 rounded-xl border border-charcoal-100 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+            <span className="text-[11px] font-medium text-charcoal-700">Mutual match chat</span>
+          </div>
+          <div className="p-2.5 bg-ivory-100 rounded-xl border border-charcoal-100 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+            <span className="text-[11px] font-medium text-charcoal-700">Instant privacy controls</span>
+          </div>
+        </div>
+        <button
+          onClick={() => onOpenOnboarding?.(1)}
+          className="px-6 py-3 rounded-full bg-forest-700 text-white text-xs sm:text-sm font-semibold hover:bg-forest-800 shadow-sm flex items-center space-x-2 transition-all hover:scale-105 active:scale-95"
+        >
+          <span>Create My Flatmate Profile</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  // 3. Prompt users with draft flatmate profiles to complete and publish
+  if (currentUser && hasProfilesData && hasFlatmateProfile && !isProfilePublished) {
+    const pct = profileCompletion?.totalPercent ?? (flatmateProfile?.completionPercent ?? 40);
+    const missing = profileCompletion?.missingFields || [];
+    return (
+      <div className="flex flex-col items-center justify-center h-[580px] p-8 text-center bg-white rounded-3xl border border-charcoal-200 shadow-md">
+        <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mb-4">
+          <FileText className="w-8 h-8 text-amber-600" />
+        </div>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-3 py-1 rounded-full mb-2 border border-amber-200">
+          Profile in Draft • {pct}% Complete
+        </span>
+        <h3 className="font-serif text-2xl font-bold text-charcoal-900 mb-2">
+          Publish Profile to Start Matching
+        </h3>
+        <p className="text-xs sm:text-sm text-charcoal-600 max-w-md mb-4 leading-relaxed">
+          Your flatmate profile is currently hidden from other members. Complete your profile details and publish to start discovering and receiving match requests.
+        </p>
+
+        {/* Completion Progress Bar */}
+        <div className="w-full max-w-xs mb-4">
+          <div className="w-full bg-charcoal-100 rounded-full h-2 overflow-hidden mb-2">
+            <div
+              className="bg-amber-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          {missing.length > 0 && (
+            <p className="text-[11px] text-charcoal-500">
+              Missing: {missing.slice(0, 3).join(', ')}
+              {missing.length > 3 ? ` +${missing.length - 3} more` : ''}
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={() => onOpenOnboarding?.(1)}
+          className="px-6 py-3 rounded-full bg-forest-700 text-white text-xs sm:text-sm font-semibold hover:bg-forest-800 shadow-sm flex items-center space-x-2 transition-all hover:scale-105 active:scale-95"
+        >
+          <span>Complete & Publish Profile</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     );
   }
