@@ -5,7 +5,6 @@ import {
   X,
   PlusCircle,
   ShieldCheck,
-  UserCheck,
   LogOut,
   ChevronDown,
   HelpCircle,
@@ -213,11 +212,6 @@ export const Navbar: React.FC = () => {
                     {currentUser.name.charAt(0)}
                   </div>
                   <span className="max-w-[120px] truncate">{currentUser.name}</span>
-                  {currentUser.isDemo && (
-                    <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded-full">
-                      Demo
-                    </span>
-                  )}
                   <ChevronDown className="w-4 h-4 text-charcoal-400" />
                 </button>
 
@@ -226,15 +220,9 @@ export const Navbar: React.FC = () => {
                     <div className="px-4 py-2 border-b border-charcoal-100">
                       <p className="text-xs text-charcoal-400 uppercase tracking-wider font-semibold">Active Profile</p>
                       <p className="text-sm font-semibold text-charcoal-800">{currentUser.name}</p>
-                      {currentUser.isDemo ? (
-                        <span className="inline-block mt-1 text-[11px] bg-amber-50 text-amber-800 border border-amber-200/80 px-2 py-0.5 rounded-full font-semibold">
-                          Non-Privileged Demo Preview
-                        </span>
-                      ) : (
-                        <span className="inline-block mt-1 text-xs bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full font-medium">
-                          Role: {currentUser.role.toUpperCase()}
-                        </span>
-                      )}
+                      <span className="inline-block mt-1 text-xs bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full font-medium">
+                        Role: {currentUser.role.toUpperCase()}
+                      </span>
                     </div>
 
                     <div className="py-1">
@@ -313,17 +301,6 @@ export const Navbar: React.FC = () => {
                       >
                         <PlusCircle className="w-4 h-4 text-forest-600" />
                         <span>Add New Listing</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setProfileDropdownOpen(false);
-                          openAuthModal('personas');
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-charcoal-600 hover:bg-ivory-100 flex items-center space-x-2"
-                      >
-                        <UserCheck className="w-4 h-4 text-forest-600" />
-                        <span>Switch Persona / Login</span>
                       </button>
                     </div>
 
@@ -549,18 +526,10 @@ export const Navbar: React.FC = () => {
 
             {currentUser ? (
               <div className="space-y-1.5 pt-1">
-                <button
-                  onClick={() => {
-                    openAuthModal('personas');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full bg-ivory-300/80 text-charcoal-800 py-2.5 rounded-xl text-sm font-medium text-left px-4 flex items-center justify-between"
-                >
+                <div className="w-full bg-ivory-300/80 text-charcoal-800 py-2.5 rounded-xl text-sm font-medium text-left px-4 flex items-center justify-between">
                   <span className="truncate">Signed in: <strong>{currentUser.name}</strong></span>
-                  {currentUser.isDemo && (
-                    <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold ml-2">Demo</span>
-                  )}
-                </button>
+                  <span className="text-[10px] bg-forest-100 text-forest-800 px-2 py-0.5 rounded font-semibold ml-2 uppercase">{currentUser.role}</span>
+                </div>
                 <button
                   onClick={() => {
                     logout();

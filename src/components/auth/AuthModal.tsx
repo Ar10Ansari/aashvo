@@ -3,12 +3,9 @@ import { useApp } from '../../context/AppContext';
 import {
   X,
   User as UserIcon,
-  Home,
-  Briefcase,
   Mail,
   Lock,
   ArrowRight,
-  Sparkles,
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
@@ -28,11 +25,11 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
-type AuthMode = 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas';
+type AuthMode = 'signin' | 'signup' | 'forgot' | 'recovery';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
-  const { loginAs, setCurrentUser, authModalMode, setAuthModalMode } = useApp();
-  const [mode, setMode] = useState<AuthMode>(authModalMode || 'signin');
+  const { setCurrentUser, authModalMode, setAuthModalMode } = useApp();
+  const [mode, setMode] = useState<AuthMode>((authModalMode as AuthMode) || 'signin');
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -349,7 +346,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               {mode === 'signup' && 'Create Your Account'}
               {mode === 'forgot' && 'Reset Password'}
               {mode === 'recovery' && 'Set New Password'}
-              {mode === 'personas' && 'Switch Demo Persona'}
             </h2>
           </div>
 
@@ -390,20 +386,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               Register
             </button>
           </div>
-
-          <button
-            onClick={() => {
-              setMode('personas');
-              setErrorMessage(null);
-              setSuccessMessage(null);
-            }}
-            className={`pb-2 text-[11px] font-semibold flex items-center space-x-1 ${
-              mode === 'personas' ? 'text-forest-800 underline' : 'text-sand-600 hover:text-sand-800'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Demo Personas</span>
-          </button>
         </div>
 
         {/* Content */}
@@ -759,79 +741,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 ← Back to Sign In
               </button>
             </form>
-          )}
-
-          {/* 4. DEMO PERSONAS SWITCHER */}
-          {mode === 'personas' && (
-            <div className="space-y-2.5">
-              <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-relaxed mb-3">
-                <span className="font-bold">🛡️ Non-Privileged Preview Mode: </span>
-                Demo personas provide read-only interface previews for testing UI flows. They do not grant verified identity, property ownership, or administrative permissions.
-              </div>
-
-              <button
-                onClick={() => {
-                  loginAs('renter', 'Rohan Varma');
-                  onClose();
-                }}
-                className="w-full p-3.5 rounded-2xl border border-charcoal-200 hover:border-forest-600 bg-white hover:bg-forest-50/50 text-left transition-all flex items-center space-x-3 group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-forest-100 text-forest-700 flex items-center justify-center group-hover:bg-forest-600 group-hover:text-white transition-colors">
-                  <UserIcon className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-sm font-bold text-charcoal-900">Rohan Varma</span>
-                    <span className="text-[10px] bg-ivory-200 text-charcoal-700 px-2 py-0.5 rounded-full font-semibold">
-                      DEMO RENTER
-                    </span>
-                  </div>
-                  <p className="text-xs text-charcoal-500">Prospective student / software engineer looking in Gurugram</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  loginAs('owner', 'Anil Mehra (DLF Owner)');
-                  onClose();
-                }}
-                className="w-full p-3.5 rounded-2xl border border-charcoal-200 hover:border-forest-600 bg-white hover:bg-forest-50/50 text-left transition-all flex items-center space-x-3 group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-forest-100 text-forest-700 flex items-center justify-center group-hover:bg-forest-600 group-hover:text-white transition-colors">
-                  <Home className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-sm font-bold text-charcoal-900">Anil Mehra</span>
-                    <span className="text-[10px] bg-forest-100 text-forest-800 px-2 py-0.5 rounded-full font-semibold">
-                      DEMO OWNER
-                    </span>
-                  </div>
-                  <p className="text-xs text-charcoal-500">Property Owner in DLF Phase 4 (₹0 Brokerage view)</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  loginAs('broker', 'Rajesh Kumar (Verified Manager)');
-                  onClose();
-                }}
-                className="w-full p-3.5 rounded-2xl border border-charcoal-200 hover:border-forest-600 bg-white hover:bg-forest-50/50 text-left transition-all flex items-center space-x-3 group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-forest-100 text-forest-700 flex items-center justify-center group-hover:bg-forest-600 group-hover:text-white transition-colors">
-                  <Briefcase className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-sm font-bold text-charcoal-900">Rajesh Kumar</span>
-                    <span className="text-[10px] bg-charcoal-100 text-charcoal-800 px-2 py-0.5 rounded-full font-semibold">
-                      DEMO MANAGER
-                    </span>
-                  </div>
-                  <p className="text-xs text-charcoal-500">Property Manager in Saket with declared fee breakdown</p>
-                </div>
-              </button>
-            </div>
           )}
         </div>
       </div>

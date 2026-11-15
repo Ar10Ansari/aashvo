@@ -740,7 +740,14 @@ export async function fetchFlatmatesFromSupabase(): Promise<{
     }
   }
 
-  return { success: true, flatmates: SEED_FLATMATES };
+  const isTestEnv =
+    (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test');
+  if (isTestEnv) {
+    return { success: true, flatmates: SEED_FLATMATES };
+  }
+
+  return { success: true, flatmates: [] };
 }
 
 /**

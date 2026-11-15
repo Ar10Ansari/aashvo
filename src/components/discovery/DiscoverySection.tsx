@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { PropertyCard } from '../property/PropertyCard';
 import { PropertyFilters } from '../property/PropertyFilters';
 import { FlatmateCard } from '../flatmate/FlatmateCard';
-import { Users, UtensilsCrossed, Building2, RotateCcw, HeartHandshake, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Users, UtensilsCrossed, Building2, RotateCcw, HeartHandshake, AlertCircle, Loader2, Sparkles, PlusCircle, Home } from 'lucide-react';
 import { FoodHabit, MealsOffered } from '../../types';
 
 export const DiscoverySection: React.FC = () => {
@@ -17,6 +17,7 @@ export const DiscoverySection: React.FC = () => {
     setSelectedFlatmate,
     resetFilters,
     openConnectModal,
+    setIsListPropertyOpen,
     isLoadingData,
     dataLoadError,
     retryDataLoad,
@@ -339,30 +340,46 @@ export const DiscoverySection: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto">
-            <div className="w-12 h-12 rounded-2xl bg-ivory-200 text-charcoal-400 flex items-center justify-center mx-auto mb-4">
-              <RotateCcw className="w-6 h-6" />
+          <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-forest-50 text-forest-700 flex items-center justify-center mx-auto mb-4">
+              <Users className="w-7 h-7" />
             </div>
-            <h3 className="font-serif text-xl font-bold text-charcoal-800 mb-2">
-              {filters.locality && filters.locality !== 'All Localities'
-                ? 'No flatmates here yet'
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-charcoal-900 mb-2">
+              {flatmates.length === 0
+                ? 'No flatmate profiles found'
+                : filters.locality && filters.locality !== 'All Localities'
+                ? `No flatmates in ${filters.locality} yet`
                 : 'No matching flatmates found'}
             </h3>
-            <p className="text-xs text-charcoal-500 mb-6">
-              {filters.locality && filters.locality !== 'All Localities'
-                ? 'No listings here yet. Try another nearby area or check back soon.'
-                : "We couldn't find flatmate profiles matching your lifestyle or budget filters. Try expanding your food preferences or resetting filters."}
+            <p className="text-xs sm:text-sm text-charcoal-500 mb-6 leading-relaxed max-w-md mx-auto">
+              {flatmates.length === 0
+                ? 'Create your profile to be discovered by compatible flatmates, or compare lifestyle habits with Aashvo Connect.'
+                : filters.locality && filters.locality !== 'All Localities'
+                ? 'No flatmate profiles active in this exact area yet. Try expanding your search or launch Aashvo Connect.'
+                : "We couldn't find flatmate profiles matching your active filters. Try expanding your food preferences or resetting filters."}
             </p>
-            <button
-              onClick={() => {
-                setSelectedFoodHabit('all');
-                setFlatmateRoomStatus('all');
-                resetFilters();
-              }}
-              className="bg-forest-600 hover:bg-forest-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all"
-            >
-              Reset Flatmate Filters
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => openConnectModal()}
+                className="bg-forest-700 hover:bg-forest-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sand-300" />
+                <span>Launch Aashvo Connect</span>
+              </button>
+              {(selectedFoodHabit !== 'all' || flatmateRoomStatus !== 'all' || (filters.locality && filters.locality !== 'All Localities')) && (
+                <button
+                  onClick={() => {
+                    setSelectedFoodHabit('all');
+                    setFlatmateRoomStatus('all');
+                    resetFilters();
+                  }}
+                  className="bg-ivory-200 hover:bg-ivory-300 text-charcoal-700 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Filters</span>
+                </button>
+              )}
+            </div>
           </div>
         )
       ) : filteredProperties.length > 0 ? (
@@ -376,29 +393,39 @@ export const DiscoverySection: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-3xl p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto">
-          <div className="w-12 h-12 rounded-2xl bg-ivory-200 text-charcoal-400 flex items-center justify-center mx-auto mb-4">
-            <RotateCcw className="w-6 h-6" />
+        <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-forest-50 text-forest-700 flex items-center justify-center mx-auto mb-4">
+            <Home className="w-7 h-7" />
           </div>
-          <h3 className="font-serif text-xl font-bold text-charcoal-800 mb-2">
-            {filters.locality && filters.locality !== 'All Localities'
-              ? 'No listings here yet'
+          <h3 className="font-serif text-xl sm:text-2xl font-bold text-charcoal-900 mb-2">
+            {properties.length === 0 || (filters.locality && filters.locality !== 'All Localities')
+              ? 'No listings in this area yet'
               : 'No matching listings found'}
           </h3>
-          <p className="text-xs text-charcoal-500 mb-6">
-            {filters.locality && filters.locality !== 'All Localities'
-              ? 'No listings here yet. Try another nearby area or check back soon.'
-              : `We couldn't find any active ${activeTab === 'family_stays' ? 'Family Stays' : 'flats'} matching your exact filters. Try adjusting your meal option or budget slider.`}
+          <p className="text-xs sm:text-sm text-charcoal-500 mb-6 leading-relaxed max-w-md mx-auto">
+            {properties.length === 0 || (filters.locality && filters.locality !== 'All Localities')
+              ? 'Be the first to list your property with 100% zero brokerage and reach verified students and professionals.'
+              : `We couldn't find any active ${activeTab === 'family_stays' ? 'Family Stays' : 'flats'} matching your exact budget or meal options. Try adjusting your filters or list a new property.`}
           </p>
-          <button
-            onClick={() => {
-              setSelectedMealFilter('all');
-              resetFilters();
-            }}
-            className="bg-forest-600 hover:bg-forest-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all"
-          >
-            Reset All Filters
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => setIsListPropertyOpen(true)}
+              className="bg-forest-700 hover:bg-forest-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-sand-300" />
+              <span>List Your Property (₹0 Fee)</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedMealFilter('all');
+                resetFilters();
+              }}
+              className="bg-ivory-200 hover:bg-ivory-300 text-charcoal-700 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset All Filters</span>
+            </button>
+          </div>
         </div>
       )}
     </section>

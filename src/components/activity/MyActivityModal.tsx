@@ -55,48 +55,8 @@ export const MyActivityModal: React.FC<MyActivityModalProps> = ({
     try {
       if (activeTab === 'visits') {
         const data = await visitService.getMyVisits().catch(() => []);
-        if (data && data.length > 0) {
-          setVisits(data);
-        } else {
-          // Curated demo activity when offline or no visits booked yet
-          setVisits([
-            {
-              id: 'vis-demo-1',
-              propertyId: 'prop-1',
-              propertyTitle: 'DLF Phase 4 Master Bedroom & Private Bath',
-              propertyCity: 'Gurugram',
-              propertyLocality: 'DLF Phase 4',
-              visitorId: currentUser?.id || 'usr-renter',
-              visitorName: currentUser?.name || 'Aarav Sharma',
-              hostId: 'usr-owner-1',
-              hostName: 'Sunita Rao',
-              scheduledAt: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
-              scheduledAtIST: 'Fri, 17 Nov 2026, 11:00 AM IST',
-              status: 'confirmed',
-              visitorMessage: 'Interested in the private master room near DLF Phase 4.',
-              hostNotes: 'Confirmed. Ring doorbell 302 upon arrival.',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            {
-              id: 'vis-demo-2',
-              propertyId: 'prop-3',
-              propertyTitle: 'Spacious Studio Apartment near Sikanderpur Metro',
-              propertyCity: 'Gurugram',
-              propertyLocality: 'Sector 28',
-              visitorId: currentUser?.id || 'usr-renter',
-              visitorName: currentUser?.name || 'Aarav Sharma',
-              hostId: 'usr-owner-2',
-              hostName: 'Vikram Malhotra',
-              scheduledAt: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
-              scheduledAtIST: 'Mon, 20 Nov 2026, 04:00 PM IST',
-              status: 'pending',
-              visitorMessage: 'Requesting Saturday afternoon viewing slot.',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-          ]);
-        }
+        const visitList = Array.isArray(data) ? data : (data as any)?.items || [];
+        setVisits(visitList);
       } else if (activeTab === 'agreements' || activeTab === 'checklists') {
         if (currentUser?.id) {
           const res = await fetchAgreementsForUser(currentUser.id).catch(() => ({ success: false, agreements: [] }));

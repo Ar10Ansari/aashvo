@@ -184,8 +184,8 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    if (!currentUser || currentUser.isDemo) {
-      setPhotoUploadError('Please sign in with an account to upload property photos to cloud storage.');
+    if (!currentUser) {
+      setPhotoUploadError('Please sign in to upload property photos to cloud storage.');
       e.target.value = '';
       return;
     }

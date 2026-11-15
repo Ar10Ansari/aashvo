@@ -13,7 +13,6 @@ import {
   TicketStatus,
   TicketPriority,
 } from '../types';
-import { SEED_PROPERTIES, SEED_FLATMATES } from '../data/seedData';
 import {
   generateTicketNumber,
   determineTicketPriority,
@@ -32,7 +31,13 @@ import {
   fetchSafetyReportsForAdminFromSupabase,
   resolveSafetyReportInSupabase,
 } from '../services/supportService';
-import { supabase, isLiveBackendConfigured } from '../services/supabase';
+import {
+  supabase,
+  isLiveBackendConfigured,
+  mapSupabasePropertyToApp,
+  mapSupabaseFlatmateToApp,
+} from '../services/supabase';
+import { apiClient } from '../services/apiClient';
 import {
   fetchPropertiesFromSupabase,
   fetchAllPropertiesForAdminFromSupabase,
@@ -69,9 +74,9 @@ interface AppContextType {
   setIsAdminOpen: (open: boolean) => void;
   isAuthOpen: boolean;
   setIsAuthOpen: (open: boolean) => void;
-  authModalMode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas';
-  setAuthModalMode: (mode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas') => void;
-  openAuthModal: (mode?: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas') => void;
+  authModalMode: 'signin' | 'signup' | 'forgot' | 'recovery';
+  setAuthModalMode: (mode: 'signin' | 'signup' | 'forgot' | 'recovery') => void;
+  openAuthModal: (mode?: 'signin' | 'signup' | 'forgot' | 'recovery') => void;
   isHelpOpen: boolean;
   setIsHelpOpen: (open: boolean) => void;
   isRentalTrustOpen: boolean;
@@ -148,50 +153,10 @@ const defaultFilters: PropertyFilterState = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load saved state or default
-  const [properties, setProperties] = useState<Property[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_properties');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= SEED_PROPERTIES.length) {
-          return parsed;
-        }
-      } catch {
-        // Fallback to fresh seed
-      }
-    }
-    return SEED_PROPERTIES;
-  });
-
-  const [flatmates, setFlatmates] = useState<Flatmate[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_flatmates');
-    return saved ? JSON.parse(saved) : SEED_FLATMATES;
-  });
-
-  const [reports, setReports] = useState<ListingReport[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_reports');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'rep-1',
-        listingId: 'prop-4',
-        listingTitle: 'Studio Room with Attached Pantry in Saket',
-        reason: 'Price clarification requested',
-        notes: 'User inquired whether electricity rate includes AC power backup.',
-        createdAt: new Date(Date.now() - 3600 * 1000 * 12).toISOString(),
-        status: 'pending',
-      }
-    ];
-  });
-
-  const [connectRequests, setConnectRequests] = useState<ConnectRequest[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_connect_requests');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [flatmates, setFlatmates] = useState<Flatmate[]>([]);
+  const [reports, setReports] = useState<ListingReport[]>([]);
+  const [connectRequests, setConnectRequests] = useState<ConnectRequest[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(isLiveBackendConfigured);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
   const [filters, setFilters] = useState<PropertyFilterState>(defaultFilters);
@@ -201,7 +166,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isListPropertyOpen, setIsListPropertyOpen] = useState<boolean>(false);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
-  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | 'forgot' | 'recovery' | 'personas'>('signin');
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | 'forgot' | 'recovery'>('signin');
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
   const [isRentalTrustOpen, setIsRentalTrustOpen] = useState<boolean>(false);
   const [isConnectOpen, setIsConnectOpen] = useState<boolean>(false);
@@ -217,188 +182,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     title: string;
   } | null>(null);
 
-  // 1. Support Tickets State (persisted to localStorage)
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_support_tickets');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // Fallback to seeds
-      }
-    }
-    return [
-      {
-        id: 'tkt-seed-1',
-        ticketNumber: 'ASH-TKT-7G4P1K',
-        userId: 'usr-101',
-        userEmail: 'rohan.v@delhitech.in',
-        userName: 'Rohan Varma',
-        userPhone: '+91 98112 34567',
-        category: 'family_stays_meals',
-        subject: 'Query on vegetarian meal kitchen separation in DLF Phase 2',
-        description: 'I am looking at the DLF Phase 2 Family Stay listing and wanted to confirm if the daily meals are prepared in a strictly vegetarian kitchen setup.',
-        referenceListingId: 'prop-5',
-        priority: 'normal',
-        status: 'resolved',
-        assignedTo: 'usr-001',
-        assignedName: 'Aashvo Support Admin',
-        attachments: [],
-        createdAt: new Date(Date.now() - 3600 * 1000 * 48).toISOString(),
-        updatedAt: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-        resolvedAt: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-        resolvedBy: 'usr-001',
-        messages: [
-          {
-            id: 'msg-1',
-            ticketId: 'tkt-seed-1',
-            senderId: 'usr-101',
-            senderName: 'Rohan Varma',
-            senderRole: 'user',
-            message: 'I am looking at the DLF Phase 2 Family Stay listing and wanted to confirm if the daily meals are prepared in a strictly vegetarian kitchen setup.',
-            isInternal: false,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 48).toISOString(),
-          },
-          {
-            id: 'msg-2',
-            ticketId: 'tkt-seed-1',
-            senderId: 'usr-001',
-            senderName: 'Aashvo Support Team',
-            senderRole: 'support',
-            message: 'Hi Rohan! We confirmed with Col. S.K. Rao that their household maintains a 100% pure vegetarian kitchen. You can safely proceed with booking a home visit.',
-            isInternal: false,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 26).toISOString(),
-          },
-          {
-            id: 'msg-3',
-            ticketId: 'tkt-seed-1',
-            senderId: 'usr-001',
-            senderName: 'Aashvo Support Team',
-            senderRole: 'admin',
-            message: 'Verified via WhatsApp with Col. Rao. Confirmed pure veg kitchen policy.',
-            isInternal: true,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 27).toISOString(),
-          },
-        ],
-        auditEvents: [
-          {
-            id: 'aud-1',
-            ticketId: 'tkt-seed-1',
-            actorId: 'usr-001',
-            actorName: 'Aashvo Support Admin',
-            action: 'status_changed',
-            oldValue: 'in_review',
-            newValue: 'resolved',
-            notes: 'Host confirmed kitchen details',
-            createdAt: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-          },
-        ],
-      },
-      {
-        id: 'tkt-seed-2',
-        ticketNumber: 'ASH-TKT-9M2X4F',
-        userId: 'usr-101',
-        userEmail: 'rohan.v@delhitech.in',
-        userName: 'Rohan Varma',
-        userPhone: '+91 98112 34567',
-        category: 'rooms_listings',
-        subject: 'Deposit clarification for Saket studio private room',
-        description: 'The listing mentions 1 month refundable security deposit of Rs 18,500. I wanted to confirm if there is any separate move-in fee charged by the resident society.',
-        referenceListingId: 'prop-4',
-        priority: 'normal',
-        status: 'in_review',
-        assignedTo: 'usr-001',
-        assignedName: 'Aashvo Support Admin',
-        attachments: [],
-        createdAt: new Date(Date.now() - 3600 * 1000 * 8).toISOString(),
-        updatedAt: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-        messages: [
-          {
-            id: 'msg-4',
-            ticketId: 'tkt-seed-2',
-            senderId: 'usr-101',
-            senderName: 'Rohan Varma',
-            senderRole: 'user',
-            message: 'The listing mentions 1 month refundable security deposit of Rs 18,500. I wanted to confirm if there is any separate move-in fee charged by the resident society.',
-            isInternal: false,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 8).toISOString(),
-          },
-          {
-            id: 'msg-5',
-            ticketId: 'tkt-seed-2',
-            senderId: 'usr-001',
-            senderName: 'Aashvo Trust Team',
-            senderRole: 'support',
-            message: 'Hello Rohan, our editorial team is reaching out to the host Deepa Saxena to cross-verify society RWA move-in rules. We will update you shortly.',
-            isInternal: false,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-          },
-        ],
-        auditEvents: [
-          {
-            id: 'aud-2',
-            ticketId: 'tkt-seed-2',
-            actorId: 'usr-001',
-            actorName: 'Aashvo Trust Admin',
-            action: 'status_changed',
-            oldValue: 'open',
-            newValue: 'in_review',
-            notes: 'Contacted host for RWA fee clarity',
-            createdAt: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-          },
-        ],
-      },
-    ];
-  });
+  // 1. Support Tickets State
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
 
   // 2. Safety Reports State
-  const [safetyReports, setSafetyReports] = useState<SafetyReport[]>(() => {
-    if (isLiveBackendConfigured) return [];
-    const saved = localStorage.getItem('aashvo_safety_reports');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // Fallback
-      }
-    }
-    return [
-      {
-        id: 'srep-1',
-        reporterId: 'usr-101',
-        reporterName: 'Rohan Varma',
-        reporterEmail: 'rohan.v@delhitech.in',
-        targetType: 'listing',
-        targetId: 'prop-4',
-        targetTitle: 'Studio Room with Attached Pantry in Saket',
-        reasonCode: 'misleading_charges',
-        reasonLabel: 'Misleading Price, Deposit or Hidden Charges',
-        details: 'Provider stated in chat that electricity rate is Rs 12 per unit, whereas the listing advertises Rs 8 per unit.',
-        priority: 'high',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 3600 * 1000 * 10).toISOString(),
-      },
-      {
-        id: 'srep-2',
-        reporterId: 'usr-202',
-        reporterName: 'Anil Mehra',
-        reporterEmail: 'anil.mehra@delhihomes.org',
-        targetType: 'flatmate',
-        targetId: 'flt-3',
-        targetTitle: 'Vikram Malhotra',
-        reasonCode: 'inappropriate_conduct',
-        reasonLabel: 'Inappropriate Conduct or Rule Violation',
-        details: 'Prospective flatmate was verbally abusive when informed about strictly non-smoking house guidelines.',
-        priority: 'high',
-        status: 'investigating',
-        createdAt: new Date(Date.now() - 3600 * 1000 * 30).toISOString(),
-        adminNotes: 'Contacted reporter Anil Mehra. Reviewing chat logs.',
-      },
-    ];
-  });
+  const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([]);
 
   // Synchronize support and safety states to localStorage
   useEffect(() => {
@@ -924,43 +712,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser]);
 
   const loadPublicMarketplaceData = async () => {
-    if (!isLiveBackendConfigured || !supabase) {
-      setIsLoadingData(false);
-      setDataLoadError(null);
-      return;
-    }
-
     setIsLoadingData(true);
     setDataLoadError(null);
 
     try {
-      const [propRes, flatmateRes] = await Promise.all([
-        fetchPropertiesFromSupabase(),
-        fetchFlatmatesFromSupabase(),
-      ]);
+      if (isLiveBackendConfigured && supabase) {
+        const [propRes, flatmateRes] = await Promise.all([
+          fetchPropertiesFromSupabase(),
+          fetchFlatmatesFromSupabase(),
+        ]);
 
-      const errors: string[] = [];
-      if (propRes.success) {
-        setProperties(propRes.properties || []);
+        const errors: string[] = [];
+        if (propRes.success) {
+          setProperties(propRes.properties || []);
+        } else {
+          setProperties([]);
+          errors.push(propRes.error || 'Could not load property listings.');
+        }
+
+        if (flatmateRes.success) {
+          setFlatmates(flatmateRes.flatmates || []);
+        } else {
+          setFlatmates([]);
+          errors.push(flatmateRes.error || 'Could not load flatmate profiles.');
+        }
+
+        if (errors.length > 0) {
+          setDataLoadError(errors.join(' '));
+        }
       } else {
-        setProperties([]);
-        errors.push(propRes.error || 'Could not load property listings.');
-      }
-
-      if (flatmateRes.success) {
-        setFlatmates(flatmateRes.flatmates);
-      } else {
-        setFlatmates([]);
-        errors.push(flatmateRes.error || 'Could not load flatmate profiles.');
-      }
-
-      if (errors.length > 0) {
-        setDataLoadError(errors.join(' '));
+        // Query Render REST API when Supabase client is not directly configured
+        try {
+          const [propRes, flatmateRes] = await Promise.all([
+            apiClient.get<{ items: any[] }>('/properties').catch(() => ({ items: [] })),
+            apiClient.get<{ items: any[] }>('/flatmates').catch(() => ({ items: [] })),
+          ]);
+          setProperties(Array.isArray(propRes?.items) ? propRes.items.map(mapSupabasePropertyToApp) : []);
+          setFlatmates(Array.isArray(flatmateRes?.items) ? flatmateRes.items.map(mapSupabaseFlatmateToApp) : []);
+          setDataLoadError(null);
+        } catch {
+          setProperties([]);
+          setFlatmates([]);
+        }
       }
     } catch (err) {
       setProperties([]);
       setFlatmates([]);
-      setDataLoadError(err instanceof Error ? err.message : 'Unable to reach Supabase backend.');
+      setDataLoadError(err instanceof Error ? err.message : 'Unable to connect to marketplace services.');
     } finally {
       setIsLoadingData(false);
     }
@@ -1064,46 +862,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Filters reset to default');
   };
 
-  const loginAs = (role: 'renter' | 'owner' | 'broker', name?: string) => {
-    const userMap: Record<'renter' | 'owner' | 'broker', User> = {
-      renter: {
-        id: 'usr-demo-101',
-        name: name || 'Rohan Varma',
-        email: 'rohan.v@delhitech.in',
-        role: 'renter',
-        phone: '+91 98112 34567',
-        isDemo: true,
-        emailVerified: false,
-        phoneVerified: false,
-        identityVerified: false,
-      },
-      owner: {
-        id: 'usr-demo-202',
-        name: name || 'Anil Mehra (DLF Owner)',
-        email: 'anil.mehra@delhihomes.org',
-        role: 'owner',
-        phone: '+91 98101 22334',
-        isDemo: true,
-        emailVerified: false,
-        phoneVerified: false,
-        identityVerified: false,
-      },
-      broker: {
-        id: 'usr-demo-303',
-        name: name || 'Rajesh Kumar (Verified Manager)',
-        email: 'rajesh@urbanstay.in',
-        role: 'broker',
-        phone: '+91 97112 99887',
-        isDemo: true,
-        emailVerified: false,
-        phoneVerified: false,
-        identityVerified: false,
-      },
-    };
-
-    setCurrentUser(userMap[role]);
-    setIsAuthOpen(false);
-    showToast(`Viewing interface as ${userMap[role].name} (Non-privileged Demo Preview)`);
+  const loginAs = (_role: 'renter' | 'owner' | 'broker', _name?: string) => {
+    // Demo persona logins decommissioned for production release
+    console.warn('[Security Notice] Demo persona logins are decommissioned in production.');
   };
 
   const logout = () => {
@@ -1272,7 +1033,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAuthOpen,
         authModalMode,
         setAuthModalMode,
-        openAuthModal: (mode: 'signin' | 'signup' | 'forgot' | 'recovery' | 'personas' = 'signin') => {
+        openAuthModal: (mode: 'signin' | 'signup' | 'forgot' | 'recovery' = 'signin') => {
           setAuthModalMode(mode);
           setIsAuthOpen(true);
         },

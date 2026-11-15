@@ -56,7 +56,12 @@ class ApiClient {
 
   public getBaseUrl(): string {
     const envUrl = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined;
-    return envUrl || '/api/v1';
+    if (!envUrl) return '/api/v1';
+    const trimmed = envUrl.replace(/\/+$/, '');
+    if (!trimmed.endsWith('/api/v1')) {
+      return `${trimmed}/api/v1`;
+    }
+    return trimmed;
   }
 
   public getAccessToken(): string | null {
@@ -148,7 +153,10 @@ class ApiClient {
     options: RequestInit = {},
   ): Promise<T> {
     const baseUrl = this.getBaseUrl();
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let cleanPath = path.startsWith('/') ? path : `/${path}`;
+    if (cleanPath.startsWith('/api/v1/')) {
+      cleanPath = cleanPath.substring('/api/v1'.length);
+    }
     const url = path.startsWith('http') ? path : `${baseUrl}${cleanPath}`;
 
     const headers = new Headers(options.headers || {});
@@ -163,11 +171,24 @@ class ApiClient {
       headers.set('Authorization', `Bearer ${this.accessToken}`);
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: options.credentials || 'include',
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: options.credentials || 'include',
+      });
+    } catch (fetchErr: unknown) {
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : 'Network error';
+      throw new ApiError({
+        statusCode: 503,
+        error: {
+          code: 'BACKEND_CONNECTIVITY_ERROR',
+          message: 'Unable to connect to Aashvo services. If the server was sleeping, please allow a few seconds for it to wake up and try again.',
+          details: errMsg,
+        },
+      });
+    }
 
     // 401 Token Refresh Interceptor (except for auth routes themselves)
     // Only attempt refresh if the client previously possessed a session!

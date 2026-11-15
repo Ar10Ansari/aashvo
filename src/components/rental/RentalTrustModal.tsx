@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { MoveInChecklistModal } from './MoveInChecklistModal';
+import { useApp } from '../../context/AppContext';
 import { User } from '../../types';
 import {
   TenancyAgreement,
@@ -54,6 +55,7 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
   onClose,
   currentUser,
 }) => {
+  const { openAuthModal } = useApp();
   const [activeTab, setActiveTab] = useState<TabType>('agreements');
   const [agreements, setAgreements] = useState<TenancyAgreement[]>([]);
   const [selectedAgreement, setSelectedAgreement] = useState<TenancyAgreement | null>(null);
@@ -64,7 +66,6 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
   const [reviews, setReviews] = useState<TenancyReview[]>([]);
   const [disputes, setDisputes] = useState<RentalDispute[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -118,8 +119,13 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
   const loadAgreements = async () => {
     setIsLoading(true);
     setLoadError(null);
-    const userId = currentUser?.id || 'user-demo-renter-1';
-    const res = await fetchAgreementsForUser(userId);
+    if (!currentUser) {
+      setAgreements([]);
+      setSelectedAgreement(null);
+      setIsLoading(false);
+      return;
+    }
+    const res = await fetchAgreementsForUser(currentUser.id);
     if (res.success) {
       setAgreements(res.agreements);
       if (res.agreements.length > 0) {
@@ -127,7 +133,6 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
       } else {
         setSelectedAgreement(null);
       }
-      setIsDemoMode(Boolean(res.isDemo));
     } else {
       setLoadError(res.error || 'Failed to connect to backend.');
       setAgreements([]);
@@ -355,21 +360,6 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
           </div>
         )}
 
-        {/* Demo Mode Notice */}
-        {isDemoMode && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-2 flex items-center justify-between text-xs text-amber-900 font-medium">
-            <div className="flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                <strong>DEMO / EVALUATION MODE:</strong> Viewing local synthetic tenancy records. Database writes will not persist to live storage.
-              </span>
-            </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-800">
-              Simulated Store
-            </span>
-          </div>
-        )}
-
         {/* Load Error Alert */}
         {loadError && (
           <div className="mx-6 mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
@@ -472,7 +462,24 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
 
         {/* Main Tab Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 bg-[#FAF9F6]">
-          {isLoading ? (
+          {!currentUser ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-sand-300 p-8 max-w-md mx-auto">
+              <ShieldCheck className="w-12 h-12 text-forest-700 mx-auto mb-3" />
+              <h3 className="font-serif text-lg font-bold text-charcoal-800">Sign in to view Rental Trust</h3>
+              <p className="text-xs text-charcoal-500 mt-1 mb-6 leading-relaxed">
+                Tenancy agreements, verified payment receipts, inspection checklists, and deposit dispute resolution are tied to your verified account.
+              </p>
+              <button
+                onClick={() => {
+                  onClose();
+                  openAuthModal('signin');
+                }}
+                className="px-6 py-2.5 bg-forest-700 hover:bg-forest-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all"
+              >
+                Sign In or Register
+              </button>
+            </div>
+          ) : isLoading ? (
             <div className="text-center py-16">
               <Clock className="w-8 h-8 text-forest-600 animate-spin mx-auto mb-2" />
               <p className="text-sm text-charcoal-500">Loading verified tenancy records...</p>

@@ -194,39 +194,47 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- 6. POLICIES (Idempotent Reconciled Policy Creation)
 -- PROFILES POLICIES
+DROP POLICY IF EXISTS "Public profiles are readable by authenticated users" ON public.profiles;
 CREATE POLICY "Public profiles are readable by authenticated users"
 ON public.profiles FOR SELECT
 TO authenticated
 USING (true);
 
+DROP POLICY IF EXISTS "Users can update only their own profile" ON public.profiles;
 CREATE POLICY "Users can update only their own profile"
 ON public.profiles FOR UPDATE
 TO authenticated
 USING (auth.uid() = id);
 
 -- PROPERTIES POLICIES
+DROP POLICY IF EXISTS "Active properties are viewable by everyone" ON public.properties;
 CREATE POLICY "Active properties are viewable by everyone"
 ON public.properties FOR SELECT
 TO anon, authenticated
 USING (status = 'active' OR auth.uid() = owner_id OR public.is_admin());
 
+DROP POLICY IF EXISTS "Authenticated users can create property listings" ON public.properties;
 CREATE POLICY "Authenticated users can create property listings"
 ON public.properties FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Owners can update their own properties" ON public.properties;
 CREATE POLICY "Owners can update their own properties"
 ON public.properties FOR UPDATE
 TO authenticated
 USING (auth.uid() = owner_id OR public.is_admin());
 
+DROP POLICY IF EXISTS "Owners can delete their own properties" ON public.properties;
 CREATE POLICY "Owners can delete their own properties"
 ON public.properties FOR DELETE
 TO authenticated
 USING (auth.uid() = owner_id OR public.is_admin());
 
 -- PROPERTY PHOTOS POLICIES
+DROP POLICY IF EXISTS "Photos of active properties are readable by anyone" ON public.property_photos;
 CREATE POLICY "Photos of active properties are readable by anyone"
 ON public.property_photos FOR SELECT
 TO anon, authenticated
@@ -238,6 +246,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Owners can manage photos of their properties" ON public.property_photos;
 CREATE POLICY "Owners can manage photos of their properties"
 ON public.property_photos FOR ALL
 TO authenticated
@@ -250,6 +259,7 @@ USING (
 );
 
 -- INTEREST REQUESTS POLICIES
+DROP POLICY IF EXISTS "Users can view their sent or received interest requests" ON public.interest_requests;
 CREATE POLICY "Users can view their sent or received interest requests"
 ON public.interest_requests FOR SELECT
 TO authenticated
@@ -262,17 +272,20 @@ USING (
   public.is_admin()
 );
 
+DROP POLICY IF EXISTS "Authenticated users can send interest requests" ON public.interest_requests;
 CREATE POLICY "Authenticated users can send interest requests"
 ON public.interest_requests FOR INSERT
 TO authenticated
 WITH CHECK (sender_id = auth.uid());
 
 -- REPORTS POLICIES
+DROP POLICY IF EXISTS "Authenticated users can submit reports" ON public.listing_reports;
 CREATE POLICY "Authenticated users can submit reports"
 ON public.listing_reports FOR INSERT
 TO authenticated
 WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Only admins can view and resolve reports" ON public.listing_reports;
 CREATE POLICY "Only admins can view and resolve reports"
 ON public.listing_reports FOR ALL
 TO authenticated
