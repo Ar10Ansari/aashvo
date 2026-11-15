@@ -1,110 +1,100 @@
 # Aashvo — Find your place. Find your people.
 
-> **Pan-India accommodation, co-living, and flatmate discovery marketplace for students and young professionals.**  
-> Built with radical financial transparency, verified co-living safety, swipe-based flatmate matching (Aashvo Connect), digital rental trust handover checklists, and an independent NestJS + PostgreSQL 16 backend.
+> **Pan-India verified accommodation, co-living, and flatmate discovery marketplace for university students and young working professionals.**
+> Built with radical financial transparency, zero brokerage fees, lifestyle compatibility matching (Aashvo Connect), family stays with homecooked meal disclosures, digital rental trust handover checklists, and an independent NestJS + PostgreSQL 16 backend.
 
 ---
 
-## 🏛️ Brand & Product Mission
+## 🏛️ Brand & Product Overview
 
-- **Brand:** `aashvo`
+- **Brand:** Aashvo
 - **Tagline:** *Find your place. Find your people.*
-- **Target Audience:** College students, interns, and young professionals relocating across major Indian tech and educational hubs (Delhi NCR, Bengaluru, Mumbai, Pune, Hyderabad, Chennai, Kota, Ahmedabad).
-- **Core Product Features:**
-  - **Smart Accommodation Discovery:** Verified Entire Flats, Private Rooms, and Family Stays with Indian city/locality/PIN code search.
-  - **Aashvo Connect:** Flatmate discovery with 3 intentions (*Has a room*, *Needs a room*, *Rent together*), compatibility scoring, mutual matching, and match-only messaging.
-  - **Rental Trust Engine:** Verified Landlord Badges, two-party Move-In Handover Checklists, digital tenancy agreements, and deposit dispute management.
-  - **Fair Rent Split Calculator:** Algorithmic rent, utility, and deposit allocation with shareable URL encoding.
-- **Aesthetics & Palette:**
-  - **Warm Ivory:** `#FBF9F5` (Editorial canvas & warmth)
-  - **Forest Green:** `#1B4332` (Primary brand accent, stability & trust)
-  - **Sand Warm:** `#D4A373` (Architectural highlights & verified badges)
-  - **Deep Charcoal:** `#1F2937` (Typographic contrast)
-  - **Typography:** *Playfair Display* (Editorial Serif) paired with *Plus Jakarta Sans* (Clean UI Sans)
+- **Production Website:** [https://aashvo.vercel.app](https://aashvo.vercel.app)
+- **Production API:** [https://aashvo-api.onrender.com/api/v1](https://aashvo-api.onrender.com/api/v1)
+- **Founders:**
+  - **Abdul Rehman Ansari** — Co-founder & Chief Technology Officer (CTO)
+  - **Tushar Jaisawl** — Co-founder & Head of Marketing
+- **Target Audience:** College students, interns, and young working professionals relocating across major Indian tech and educational hubs (Delhi NCR, Gurugram, Bengaluru, Mumbai, Pune, Hyderabad).
+- **Core Product Pillars:**
+  1. **Find Flatmates (Primary):** Connect with compatible roommates based on lifestyle compatibility (food habits, sleep routines, cleanliness, pet-friendliness) with adult age verification (18+).
+  2. **Aashvo Connect:** Profile discovery with verified badges, compatibility percentage breakdown, mutual matching, and match-only messaging.
+  3. **Family Stays:** Private rooms inside primary homes of resident host families living on-premises full-time, with transparent meal options (Included, Optional Extra, or Self-Catering).
+  4. **Entire Flats & Rooms:** Direct property owner listings with ₹0 listing fee, zero broker markups, and itemized upfront monthly costs.
 
 ---
 
-## 🛠️ System Architecture
+## 🛠️ Technology Stack
 
-AASHVO is structured as an **npm workspaces monorepo** with strict separation of concerns across the client, backend, and shared contract packages.
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend SPA** | React 18, TypeScript 5.7, Vite 6, Tailwind CSS 3.4, Lucide React |
+| **Backend API** | NestJS 11 (Modular Monolith), Express, Node.js 22 LTS, TypeScript 5.7 |
+| **Database & ORM** | PostgreSQL 16 (Hosted on Supabase Mumbai `ap-south-1`), Prisma ORM v6.19 |
+| **Authentication** | Google Identity Services (GIS), Asymmetric RS256 JWT, Argon2id, Refresh Token Rotation |
+| **Storage & Media** | Unified Storage Abstraction: Cloudflare R2 (Public assets) & AWS S3 Mumbai (Encrypted KYC vault) |
+| **Hosting & CI/CD** | Vercel (Frontend CDN), Render (Backend Compute), GitHub Actions (API CI) |
+| **Testing** | Vitest & Testing Library (Frontend, 275 tests), Jest & Supertest (Backend, 163 tests) |
+
+---
+
+## 📁 Repository Structure
+
+AASHVO is structured as an **npm workspaces monorepo** with clear architectural boundaries:
 
 ```text
 AASHVO Monorepo
-├── src/                  # React 18 + TypeScript + Vite 6 SPA (Root Frontend)
-├── apps/api/             # NestJS 11 Modular Monolith REST API (/api/v1)
-├── packages/contracts/   # Shared TypeScript Interfaces, Enums & OpenAPI 3.x
-├── supabase/             # Legacy Supabase Archive & Disaster Recovery Rollback
-└── docs/                 # Authoritative Architecture, Runbooks & Audit Reports
+├── src/                  # React 18 SPA Frontend (Vite 6, Tailwind CSS)
+│   ├── components/       # Accessible UI components (Auth, Connect, Discovery, Rental, etc.)
+│   ├── context/          # Application context & global state management
+│   ├── services/         # Strongly-typed API client & feature services
+│   ├── test/             # 25 Vitest test suites (275 automated tests)
+│   ├── types/            # Frontend domain TypeScript definitions
+│   └── utils/            # Formatting and calculation helpers
+├── apps/
+│   └── api/              # NestJS 11 Modular Monolith REST API (/api/v1)
+│       ├── prisma/       # Prisma schema (22 models) and SQL migrations
+│       ├── src/          # 15 domain modules, guards, decorators, and interceptors
+│       └── test/         # 14 Jest integration test suites (163 automated tests)
+├── packages/
+│   └── contracts/        # Shared TypeScript interfaces, canonical enums & OpenAPI 3.x
+├── public/               # Static assets, robots.txt, sitemap.xml, llms.txt, favicon.svg
+├── supabase/             # Immutable migration archive & disaster recovery reference
+└── docs/                 # Categorized engineering specifications & runbooks
+    ├── product/          # Feature specs and user journeys
+    ├── architecture/     # System topology and module designs
+    ├── api/              # Endpoint references and contract schemas
+    ├── database/         # PostgreSQL schema and migration plans
+    ├── security/         # Cryptographic review and RLS policies
+    ├── development/      # Monorepo setup and dependency hygiene
+    ├── deployment/       # Staging and production deployment runbooks
+    ├── testing/          # QA reports and accessibility reviews
+    └── archive/          # Historical sprint reports and audits
 ```
-
-### 1. Frontend Architecture (`src/`)
-- **Framework:** React 18 with TypeScript 5.7.
-- **Build Tool:** Vite 6 with Rollup manual chunk-splitting (`vendor-react`, `vendor-icons`), eliminating monolithic chunks (main chunk 437 kB, 97 kB gzip).
-- **Styling:** Tailwind CSS 3.4 with custom design tokens.
-- **Accessibility:** 100% WCAG 2.1 Level AA compliant with standard WAI-ARIA 1.2 dialog semantics (`role="dialog"`, `aria-modal="true"`), high-contrast palette (>9.5:1), and keyboard navigation.
-- **API Client:** Strongly-typed REST client (`src/services/apiClient.ts`) featuring automatic Bearer JWT injection, correlation tracking (`X-Request-Id`), and canonical error envelope unwrapping.
-
-### 2. Backend Architecture (`apps/api`)
-- **Framework:** NestJS 11 (modular monolith) running on Express and Node.js 22 LTS.
-- **Architecture:** 15 domain modules (`AuthModule`, `ConnectModule`, `PropertiesModule`, `FlatmatesModule`, `RentalTrustModule`, `StorageModule`, `SupportModule`, `AdminModule`, `LocationsModule`, etc.).
-- **Security Middleware:** Helmet for HTTP security headers, NestJS Throttler for rate limiting (5 req/min auth, 100 req/min global), and NestJS-Pino for structured JSON logging with automatic PII/credential redaction.
-- **Authentication:** Memory-hard Argon2id password hashing ($m=65536, t=3, p=4$), short-lived 15-minute JWT access tokens, and refresh token rotation with replay detection.
-
-### 3. Database Architecture (`PostgreSQL 16` & `Prisma`)
-- **Database Engine:** PostgreSQL 16.
-- **ORM:** Prisma Client v6.19.3.
-- **Schema Model:** 22 relational domain tables, strict foreign keys, composite indexes on spatial coordinates and swipe matches, and version-controlled migration scripts in `apps/api/prisma/migrations/`.
-- **Reliability:** Built-in PostgreSQL transactional event outbox pattern (`outbox_events`) for reliable asynchronous events.
-
-### 4. Storage Architecture
-- **Unified Abstraction:** `StorageService` interface abstracting local disk and multi-cloud providers.
-- **Public Assets (Photos & Avatars):** Cloudflare R2 object storage with global edge CDN caching and zero egress fees.
-- **Private Vault (KYC & Leases):** AWS S3 Mumbai (`ap-south-1`) with server-side encryption, private ACLs, and 15-minute temporary signed download URLs.
-
-### 5. Shared Contracts (`packages/contracts`)
-- Dual CommonJS/ESM compilation for domain entities, HTTP error envelopes, and canonical enums.
-- Automatically generated OpenAPI 3.x specification (`openapi.json`, 203 kB).
-
----
-
-## ⚡ Legacy Supabase Status
-
-> [!NOTE]
-> **SUPERSEDED PROTOTYPE — PASSIVE ROLLBACK ARCHIVE ONLY**  
-> AASHVO was initially prototyped on Supabase. In accordance with strategic CTO directives, all core capabilities (authentication, database queries, and storage) have migrated to our independent NestJS and PostgreSQL 16 platform.  
-> 
-> The `supabase/` folder is retained strictly as an immutable archive of the 12 original SQL migrations and CLI configuration. The hosted Supabase instance (`himtwnwxvnnykafyhysy`) is air-gapped; **it is not used by the staging or production NestJS application.** For complete audit details, see [docs/LEGACY_SUPABASE_STATUS.md](./docs/LEGACY_SUPABASE_STATUS.md).
-
----
-
-## ☁️ Staging Infrastructure Status
-
-> [!IMPORTANT]
-> **PREPARED LOCALLY — AWAITING FOUNDER SIGN-OFF**  
-> The staging execution plan, architecture topologies, and environment variables are fully prepared and locally verified.  
-> **Cloud infrastructure has NOT yet been provisioned or billed.** Deployment will begin upon Founder approval of the [STAGING_EXECUTION_APPROVAL_CHECKLIST.md](./docs/STAGING_EXECUTION_APPROVAL_CHECKLIST.md).
->
-> - **API Compute:** Render / Fly.io / Railway Node.js 22 container.
-> - **Database:** Managed PostgreSQL 16 (Bangalore / Mumbai region).
-> - **Frontend CDN:** Vercel Staging Preview.
-> - **Object Storage:** Cloudflare R2 (`aashvo-public-staging`) & AWS S3 Mumbai (`aashvo-private-staging`).
 
 ---
 
 ## 🚀 Local Development Setup
 
 ### 1. Prerequisites
-- **Node.js:** Node.js 18+ LTS (Tested on `v22.x` and `v24.x`).
-- **NPM:** npm 9+ (Tested on `v11.x`).
-- **PostgreSQL 16:** Local PostgreSQL 16 instance running on port 5433 or via Docker.
+- **Node.js:** Node.js 20+ LTS or 22 LTS (Tested on `v22.x` and `v24.x`).
+- **NPM:** npm 9+ (Tested on `v10.x` / `v11.x`).
+- **PostgreSQL 16:** Local instance running on port 5433 or hosted PostgreSQL.
 
-### 2. Install Monorepo Dependencies
+### 2. Installation
 ```bash
+# Clone the repository
+git clone https://github.com/Ar10Ansari/aashvo.git
+cd aashvo
+
+# Install monorepo dependencies
 npm install
+
+# Build shared contracts package
+npm run contracts:build
 ```
 
 ### 3. Environment Configuration
-Create local environment files from the provided templates:
+Copy the provided environment templates:
 ```bash
 # Frontend configuration
 cp .env.example .env.local
@@ -113,8 +103,7 @@ cp .env.example .env.local
 cp apps/api/.env.example apps/api/.env
 ```
 
-### 4. Database Migrations
-Apply version-controlled Prisma migrations to your local PostgreSQL 16 database:
+### 4. Database Setup & Migrations
 ```bash
 # Validate Prisma schema
 npm run api:prisma:validate
@@ -122,14 +111,14 @@ npm run api:prisma:validate
 # Generate Prisma Client
 npm --workspace=@aashvo/api run prisma:generate
 
-# Apply migrations
+# Apply migrations to local database
 npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
 ```
 
 ### 5. Running the Application
-Start the frontend and backend in separate terminal sessions:
+Start the frontend and backend services concurrently or in separate terminals:
 ```bash
-# Terminal 1: Start NestJS Backend API (http://localhost:4000)
+# Terminal 1: Start NestJS Backend API (http://localhost:4000/api/v1)
 npm run api:dev
 
 # Terminal 2: Start React Frontend (http://localhost:5173)
@@ -140,57 +129,47 @@ npm run dev
 
 ## 🧪 Testing & Verification Commands
 
-AASHVO maintains a comprehensive suite of **364 automated tests** across the backend and frontend with a **100% pass rate**.
+AASHVO enforces strict test automation across the workspace with **438 automated tests** passing at a **100% pass rate**:
 
 ```bash
-# 1. Build Shared Contracts (CJS + ESM)
-npm run contracts:build
-
-# 2. Typecheck Entire Monorepo
-npm --workspace=packages/contracts run typecheck
-npm --workspace=@aashvo/api run typecheck
-npm run typecheck
-
-# 3. Run Backend Integration Tests (Jest on PostgreSQL 16 — 11 suites, 107 tests)
-npm run api:test
-
-# 4. Run Frontend Unit & Integration Tests (Vitest — 23 files, 257 tests)
+# 1. Run Frontend Tests (Vitest — 25 suites, 275 tests)
 npm test
 
-# 5. Generate OpenAPI 3.x Specification
-npm run api:openapi
+# 2. Run Backend Integration Tests (Jest — 14 suites, 163 tests)
+npm run api:test
 
-# 6. Build Production Frontend Bundle (Vite 6 Code-Split)
+# 3. Static Type Checking (Zero Errors)
+npm run typecheck
+npm --workspace=@aashvo/api run typecheck
+
+# 4. Production Bundling & Builds
 npm run build
+npm run api:build
+
+# 5. OpenAPI Specification Generation
+npm run api:openapi
 ```
 
 ---
 
-## 📚 Key Engineering Documentation
+## 📚 Documentation Index
 
-Authoritative architecture specifications, runbooks, and audit logs are available in the [`docs/`](./docs) directory:
+For detailed specifications, architectural diagrams, security reviews, and operational runbooks, consult the categorized documentation in [`docs/`](./docs/README.md):
 
-- [docs/FINAL_ARCHITECTURE.md](./docs/FINAL_ARCHITECTURE.md) — Authoritative end-to-end system architecture & topology.
-- [docs/FINAL_REPOSITORY_STRUCTURE.md](./docs/FINAL_REPOSITORY_STRUCTURE.md) — Repository layout & module organization.
-- [docs/FINAL_ENGINEERING_DOCUMENTATION_INDEX.md](./docs/FINAL_ENGINEERING_DOCUMENTATION_INDEX.md) — Comprehensive guide to all 46 active specs and 68 archived reports.
-- [docs/FINAL_SECURITY_REVIEW.md](./docs/FINAL_SECURITY_REVIEW.md) — Hardened security architecture, Argon2id, JWT, and IDOR defenses.
-- [docs/PERFORMANCE_REVIEW.md](./docs/PERFORMANCE_REVIEW.md) — Bundle code-splitting metrics, database indexes, and API benchmarks.
-- [docs/ACCESSIBILITY_REVIEW.md](./docs/ACCESSIBILITY_REVIEW.md) — WCAG 2.1 AA evaluation and WAI-ARIA 1.2 modal dialog matrix.
-- [docs/DEPENDENCY_REMEDIATION.md](./docs/DEPENDENCY_REMEDIATION.md) — Vulnerability audit (`zod`, `vite`, `deepmerge-ts`).
-- [docs/ENGINEERING_HARDENING_REPORT.md](./docs/ENGINEERING_HARDENING_REPORT.md) — Executive hardening summary and release sign-off.
-- [docs/POSTGRESQL_DATABASE_DESIGN.md](./docs/POSTGRESQL_DATABASE_DESIGN.md) — PostgreSQL 16 relational design, 22 tables, and indexes.
-- [docs/STAGING_DEPLOYMENT_RUNBOOK.md](./docs/STAGING_DEPLOYMENT_RUNBOOK.md) — Step-by-step cloud staging deployment runbook.
-- [docs/STAGING_ROLLBACK_PLAN.md](./docs/STAGING_ROLLBACK_PLAN.md) — Multi-tier rollback procedures.
-- [docs/LEGACY_SUPABASE_STATUS.md](./docs/LEGACY_SUPABASE_STATUS.md) — Classification and decoupling roadmap for legacy Supabase assets.
+- [**Product Specifications**](./docs/product/): [`AASHVO_CONNECT_PRODUCT_SPEC.md`](./docs/product/AASHVO_CONNECT_PRODUCT_SPEC.md), [`FEATURE_EXPANSION_PRODUCT_SPEC.md`](./docs/product/FEATURE_EXPANSION_PRODUCT_SPEC.md)
+- [**System Architecture**](./docs/architecture/): [`FINAL_ARCHITECTURE.md`](./docs/architecture/FINAL_ARCHITECTURE.md), [`INDEPENDENT_BACKEND_ARCHITECTURE.md`](./docs/architecture/INDEPENDENT_BACKEND_ARCHITECTURE.md)
+- [**API References**](./docs/api/): [`AASHVO_CONNECT_API_REFERENCE.md`](./docs/api/AASHVO_CONNECT_API_REFERENCE.md), [`FEATURE_EXPANSION_API_REFERENCE.md`](./docs/api/FEATURE_EXPANSION_API_REFERENCE.md)
+- [**Database & Migrations**](./docs/database/): [`POSTGRESQL_DATABASE_DESIGN.md`](./docs/database/POSTGRESQL_DATABASE_DESIGN.md), [`SUPABASE_MIGRATION_PLAN.md`](./docs/database/SUPABASE_MIGRATION_PLAN.md)
+- [**Security & OAuth**](./docs/security/): [`AASHVO_SECURITY_RELEASE_AUDIT.md`](./docs/security/AASHVO_SECURITY_RELEASE_AUDIT.md), [`FINAL_SECURITY_REVIEW.md`](./docs/security/FINAL_SECURITY_REVIEW.md)
+- [**Deployment & SEO**](./docs/deployment/): [`AASHVO_SEO_LAUNCH_CHECKLIST.md`](./docs/deployment/AASHVO_SEO_LAUNCH_CHECKLIST.md), [`STAGING_DEPLOYMENT_RUNBOOK.md`](./docs/deployment/STAGING_DEPLOYMENT_RUNBOOK.md)
+- [**QA & Verification**](./docs/testing/): [`AASHVO_FINAL_QA_REPORT.md`](./docs/testing/AASHVO_FINAL_QA_REPORT.md), [`ACCESSIBILITY_REVIEW.md`](./docs/testing/ACCESSIBILITY_REVIEW.md)
 
 ---
 
-## 🔒 Security & Privacy Notice
+## 🔒 Security & Privacy Commitments
 
-AASHVO adheres strictly to OWASP and DPDP (Digital Personal Data Protection) principles:
-- Passwords hashed with memory-hard **Argon2id**.
-- JWT access tokens (15m expiry) with cryptographic refresh token rotation and replay family revocation.
-- Fine-grained RBAC with database-level ownership checks (zero IDOR exposure).
-- Connect messaging strictly locked behind reciprocal mutual likes.
-- Private KYC and title deeds protected in encrypted vaults with 15-minute expiring download links.
-- Structured Pino logging automatically redacting sensitive Indian PII (Aadhaar, PAN), credentials, and tokens.
+AASHVO strictly adheres to OWASP Top 10 and DPDP (Digital Personal Data Protection) principles:
+- **Zero Account Takeover Vulnerabilities:** Google Identity Services ID tokens are verified against Google's public JWKS certificates (RS256); pre-existing password accounts cannot be claimed without password authentication and explicit linking.
+- **Credential Protection:** Passwords hashed with memory-hard **Argon2id**; sessions managed via dual-token JWTs with cryptographic refresh token rotation and family reuse detection.
+- **Data Privacy Masking:** Phone numbers and precise residential addresses are masked publicly until mutual inquiry acceptance.
+- **Role Isolation:** LocalStorage admin tampering is automatically demoted client-side and strictly enforced server-side via `RolesGuard` and `JwtAuthGuard`.
