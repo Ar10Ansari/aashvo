@@ -47,7 +47,51 @@ export class ConnectDiscoverQueryDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  minBudget?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
   maxBudget?: number;
+
+  @IsOptional()
+  @IsString()
+  moveInDate?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  moveInFlexible?: boolean;
+
+  @IsOptional()
+  @IsString()
+  roomType?: string;
+
+  @IsOptional()
+  @IsString()
+  furnishing?: string;
+
+  @IsOptional()
+  @IsString()
+  foodHabit?: string;
+
+  @IsOptional()
+  @IsString()
+  sleepRoutine?: string;
+
+  @IsOptional()
+  @IsString()
+  cleanliness?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  petFriendly?: boolean;
+
+  @IsOptional()
+  @IsString()
+  smoking?: string;
 
   @IsOptional()
   @Type(() => Boolean)
@@ -59,11 +103,72 @@ export class ConnectDiscoverQueryDto {
   intention?: FlatmateIntention;
 
   @IsOptional()
+  @IsIn(['compatibility', 'budget_asc', 'budget_desc', 'recent'])
+  sortBy?: 'compatibility' | 'budget_asc' | 'budget_desc' | 'recent';
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(50)
   limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  offset?: number;
+}
+
+export class UpdateMatchingPreferencesDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  budget?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  location?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  lifestyle?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  food?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  sleep?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  moveIn?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  interests?: number;
 }
 
 export class SendConnectMessageDto {

@@ -11,6 +11,7 @@ import type {
   ConnectMatchItem,
   ConnectMessageItem,
   FlatmateIntention,
+  ConnectDiscoverFilters,
 } from '@aashvo/contracts';
 import {
   X,
@@ -55,13 +56,19 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
   const [isLoadingDeck, setIsLoadingDeck] = useState(true);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [selectedIntentionFilter, setSelectedIntentionFilter] = useState<FlatmateIntention | 'all'>('all');
+  const [filters, setFilters] = useState<ConnectDiscoverFilters>({
+    sortBy: 'compatibility',
+  });
 
   // Load candidates
-  const loadCandidates = useCallback(async (intentFilter?: FlatmateIntention | 'all') => {
+  const loadCandidates = useCallback(async (customFilters?: ConnectDiscoverFilters) => {
     setIsLoadingDeck(true);
     try {
-      const activeFilter = intentFilter !== undefined ? intentFilter : selectedIntentionFilter;
-      const params = activeFilter && activeFilter !== 'all' ? { intention: activeFilter } : undefined;
+      const activeFilters = customFilters || filters;
+      const params: ConnectDiscoverFilters = {
+        ...activeFilters,
+        intention: activeFilters.intention,
+      };
       const data = await connectService.getCandidates(params);
       setCandidates(data);
     } catch {
@@ -69,11 +76,31 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
     } finally {
       setIsLoadingDeck(false);
     }
-  }, [selectedIntentionFilter]);
+  }, [filters]);
 
   const handleSelectIntentionFilter = (filter: FlatmateIntention | 'all') => {
     setSelectedIntentionFilter(filter);
-    loadCandidates(filter);
+    const nextFilters: ConnectDiscoverFilters = {
+      ...filters,
+      intention: filter === 'all' ? undefined : filter,
+    };
+    setFilters(nextFilters);
+    loadCandidates(nextFilters);
+  };
+
+  const handleApplyFilters = (newFilters: ConnectDiscoverFilters) => {
+    setFilters(newFilters);
+    setSelectedIntentionFilter(newFilters.intention || 'all');
+    loadCandidates(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    const defaultFilters: ConnectDiscoverFilters = {
+      sortBy: 'compatibility',
+    };
+    setSelectedIntentionFilter('all');
+    setFilters(defaultFilters);
+    loadCandidates(defaultFilters);
   };
 
   // Load matches
@@ -285,6 +312,9 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               isLoading={isLoadingDeck}
               selectedIntention={selectedIntentionFilter}
               onSelectIntention={handleSelectIntentionFilter}
+              filters={filters}
+              onApplyFilters={handleApplyFilters}
+              onResetFilters={handleResetFilters}
               currentUser={currentUser}
               marketplaceProfiles={marketplaceProfiles}
               profileCompletion={profileCompletion}

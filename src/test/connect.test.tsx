@@ -223,13 +223,18 @@ describe('Aashvo Connect — UI Components Rendering & Interaction', () => {
     intentions: ['has_room', 'team_up'],
     roomDetails: 'Private room in a 2BHK with balcony',
     compatibility: {
+      scoreAvailable: true,
       overallScore: 92,
       foodScore: 100,
       sleepScore: 90,
       cleanlinessScore: 95,
       budgetScore: 85,
+      locationScore: 95,
+      lifestyleScore: 95,
+      moveInScore: 88,
       interestsScore: 90,
       sharedInterests: ['Yoga', 'Specialty Coffee'],
+      explanations: ['Both prefer vegetarian diet', 'Shared passion for Yoga'],
     },
   };
 
@@ -269,7 +274,8 @@ describe('Aashvo Connect — UI Components Rendering & Interaction', () => {
     // Toggle full breakdown
     const toggleBtn = screen.getByText(/View Scores/i);
     fireEvent.click(toggleBtn);
-    expect(screen.getByText(/Food Habits \(25% weight\)/i)).toBeDefined();
+    expect(screen.getByText('Location & Locality')).toBeDefined();
+    expect(screen.getByText('Lifestyle & Cleanliness')).toBeDefined();
     expect(screen.getByText(/Shared: Yoga, Specialty Coffee/i)).toBeDefined();
   });
 

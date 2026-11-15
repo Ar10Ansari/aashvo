@@ -28,6 +28,7 @@ docs/
 | Document | Purpose |
 | :--- | :--- |
 | [`AASHVO_CONNECT_PRODUCT_SPEC.md`](./product/AASHVO_CONNECT_PRODUCT_SPEC.md) | Product specification for Aashvo Connect swipe-based flatmate matching and messaging. |
+| [`AASHVO_CONNECT_INTELLIGENCE_SPEC.md`](./product/AASHVO_CONNECT_INTELLIGENCE_SPEC.md) | Specification for 7-dimension matching, personalized weights, and match explanations. |
 | [`FEATURE_EXPANSION_PRODUCT_SPEC.md`](./product/FEATURE_EXPANSION_PRODUCT_SPEC.md) | Specifications for rental trust handover checklists, deposit tracking, and reviews. |
 | [`END_TO_END_USER_JOURNEYS.md`](./product/END_TO_END_USER_JOURNEYS.md) | Journey maps for Renters, Flatmates, and Property Owners across the platform. |
 
@@ -40,6 +41,7 @@ docs/
 | [`FINAL_ARCHITECTURE.md`](./architecture/FINAL_ARCHITECTURE.md) | End-to-end system topology: React SPA, NestJS 11 backend, PostgreSQL 16 database. |
 | [`INDEPENDENT_BACKEND_ARCHITECTURE.md`](./architecture/INDEPENDENT_BACKEND_ARCHITECTURE.md) | Modular monolith architecture, dependency injection, and service boundaries. |
 | [`AASHVO_CONNECT_TECHNICAL_DESIGN.md`](./architecture/AASHVO_CONNECT_TECHNICAL_DESIGN.md) | Technical architecture of the Connect recommendation and match pipeline. |
+| [`CONNECT_INTELLIGENCE_ARCHITECTURE.md`](./architecture/CONNECT_INTELLIGENCE_ARCHITECTURE.md) | 7-dimension mathematical compatibility engine and database persistence. |
 | [`FEATURE_EXPANSION_TECHNICAL_DESIGN.md`](./architecture/FEATURE_EXPANSION_TECHNICAL_DESIGN.md) | Architecture for digital agreements, inspections, and trust metrics. |
 | [`MONOREPO_TRANSITION_PLAN.md`](./architecture/MONOREPO_TRANSITION_PLAN.md) | Monorepo structure, npm workspaces boundaries, and build orchestration. |
 | [`FRONTEND_BACKEND_MAPPING.md`](./architecture/FRONTEND_BACKEND_MAPPING.md) | Mapping of React services and hooks to backend REST endpoints. |
@@ -56,6 +58,7 @@ docs/
 | Document | Purpose |
 | :--- | :--- |
 | [`AASHVO_CONNECT_API_REFERENCE.md`](./api/AASHVO_CONNECT_API_REFERENCE.md) | REST API endpoints for profiles, swipes, matches, and messaging. |
+| [`CONNECT_INTELLIGENCE_API_REFERENCE.md`](./api/CONNECT_INTELLIGENCE_API_REFERENCE.md) | REST API endpoints for user matching preferences and intelligent candidate discovery. |
 | [`FEATURE_EXPANSION_API_REFERENCE.md`](./api/FEATURE_EXPANSION_API_REFERENCE.md) | REST API endpoints for agreements, disputes, support, and reviews. |
 | [`FRONTEND_API_TRANSITION_PLAN.md`](./api/FRONTEND_API_TRANSITION_PLAN.md) | Client API migration plan from direct PostgREST to NestJS API. |
 | [`BACKEND_CONNECTIVITY_MATRIX.md`](./api/BACKEND_CONNECTIVITY_MATRIX.md) | Network, port, and security connectivity matrix across environments. |

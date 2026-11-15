@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -25,6 +26,7 @@ import {
   ReportUserDto,
   SendConnectMessageDto,
   UpdateIntentionsDto,
+  UpdateMatchingPreferencesDto,
   UpdateVisibilityDto,
 } from './dto/connect.dto';
 
@@ -33,6 +35,23 @@ import {
 @Controller('api/v1/connect')
 export class ConnectController {
   constructor(private readonly connectService: ConnectService) {}
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Get current user personalized matching weights & priorities' })
+  @ApiResponse({ status: 200, description: 'Matching preferences' })
+  async getPreferences(@CurrentUser() user: AuthenticatedUser) {
+    return this.connectService.getUserMatchingPreferences(user.id);
+  }
+
+  @Put('preferences')
+  @ApiOperation({ summary: 'Update personalized matching weights & priorities' })
+  @ApiResponse({ status: 200, description: 'Updated matching preferences' })
+  async updatePreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateMatchingPreferencesDto,
+  ) {
+    return this.connectService.updateUserMatchingPreferences(user.id, dto);
+  }
 
   @Get(['candidates', 'discover'])
   @Public()

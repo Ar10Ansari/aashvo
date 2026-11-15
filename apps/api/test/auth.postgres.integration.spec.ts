@@ -91,6 +91,7 @@ describe('PostgreSQL Schema Constraints & Authentication Security Integration', 
     mailer.clear();
     await prisma.$executeRawUnsafe(
       `TRUNCATE TABLE
+        user_matching_preferences,
         audit_logs,
         notification_outbox,
         phone_otp_challenges,
@@ -130,7 +131,7 @@ describe('PostgreSQL Schema Constraints & Authentication Security Integration', 
        FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'`,
     );
-    expect(Number(tableRows[0]?.count)).toBe(33);
+    expect(Number(tableRows[0]?.count)).toBe(34);
 
     const ownerId = randomUUID();
     await prisma.user.create({

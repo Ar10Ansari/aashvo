@@ -17,7 +17,7 @@
 - **Target Audience:** College students, interns, and young working professionals relocating across major Indian tech and educational hubs (Delhi NCR, Gurugram, Bengaluru, Mumbai, Pune, Hyderabad).
 - **Core Product Pillars:**
   1. **Find Flatmates (Primary):** Connect with compatible roommates based on lifestyle compatibility (food habits, sleep routines, cleanliness, pet-friendliness) with adult age verification (18+).
-  2. **Aashvo Connect:** Profile discovery with verified badges, compatibility percentage breakdown, mutual matching, and match-only messaging.
+  2. **Aashvo Connect Intelligence:** 7-dimension deterministic matching (budget, location, lifestyle, food, sleep, move-in date, shared interests) with personalized priority weights, data-driven "Why You Match" explanations, mutual double-opt-in consent, and match-only messaging.
   3. **Family Stays:** Private rooms inside primary homes of resident host families living on-premises full-time, with transparent meal options (Included, Optional Extra, or Self-Catering).
   4. **Entire Flats & Rooms:** Direct property owner listings with ₹0 listing fee, zero broker markups, and itemized upfront monthly costs.
 
@@ -33,7 +33,7 @@
 | **Authentication** | Google Identity Services (GIS), Asymmetric RS256 JWT, Argon2id, Refresh Token Rotation |
 | **Storage & Media** | Unified Storage Abstraction: Cloudflare R2 (Public assets) & AWS S3 Mumbai (Encrypted KYC vault) |
 | **Hosting & CI/CD** | Vercel (Frontend CDN), Render (Backend Compute), GitHub Actions (API CI) |
-| **Testing** | Vitest & Testing Library (Frontend, 275 tests), Jest & Supertest (Backend, 163 tests) |
+| **Testing** | Vitest & Testing Library (Frontend, 293 tests), Jest & Supertest (Backend, 182 tests) |
 
 ---
 
@@ -47,14 +47,14 @@ AASHVO Monorepo
 │   ├── components/       # Accessible UI components (Auth, Connect, Discovery, Rental, etc.)
 │   ├── context/          # Application context & global state management
 │   ├── services/         # Strongly-typed API client & feature services
-│   ├── test/             # 25 Vitest test suites (275 automated tests)
+│   ├── test/             # 27 Vitest test suites (293 automated tests)
 │   ├── types/            # Frontend domain TypeScript definitions
 │   └── utils/            # Formatting and calculation helpers
 ├── apps/
 │   └── api/              # NestJS 11 Modular Monolith REST API (/api/v1)
-│       ├── prisma/       # Prisma schema (22 models) and SQL migrations
+│       ├── prisma/       # Prisma schema (24 models) and SQL migrations
 │       ├── src/          # 15 domain modules, guards, decorators, and interceptors
-│       └── test/         # 14 Jest integration test suites (163 automated tests)
+│       └── test/         # 16 Jest integration test suites (182 automated tests)
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces, canonical enums & OpenAPI 3.x
 ├── public/               # Static assets, robots.txt, sitemap.xml, llms.txt, favicon.svg

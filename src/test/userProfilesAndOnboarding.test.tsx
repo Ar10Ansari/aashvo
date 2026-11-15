@@ -206,13 +206,18 @@ describe('AASHVO User Profiles, Onboarding & Connect Matching UI Suite', () => {
       intentions: ['needs_room', 'team_up'],
       roomDetails: null,
       compatibility: {
+        scoreAvailable: true,
         overallScore: 88,
         foodScore: 20,
         sleepScore: 20,
         cleanlinessScore: 20,
         budgetScore: 18,
+        locationScore: 90,
+        lifestyleScore: 88,
+        moveInScore: 85,
         interestsScore: 10,
         sharedInterests: ['Design', 'Yoga'],
+        explanations: ['Both prefer quiet hours', 'Shared interest in Design and Yoga'],
       },
     };
 

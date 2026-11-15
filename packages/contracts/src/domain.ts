@@ -577,14 +577,94 @@ export interface SupportTicketView {
 
 // ==================== AASHVO CONNECT ====================
 
+export interface MatchingWeightsConfig {
+  budget: number;
+  location: number;
+  lifestyle: number;
+  food: number;
+  sleep: number;
+  moveIn: number;
+  interests: number;
+}
+
+export const DEFAULT_MATCHING_WEIGHTS: MatchingWeightsConfig = {
+  budget: 20,
+  location: 20,
+  lifestyle: 20,
+  food: 15,
+  sleep: 10,
+  moveIn: 10,
+  interests: 5,
+};
+
+export interface CompatibilityDimensionDetail {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  explanation: string;
+}
+
 export interface CompatibilityBreakdown {
   overallScore: number;
+  scoreAvailable: boolean;
+  budgetScore: number;
+  locationScore: number;
+  lifestyleScore: number;
   foodScore: number;
   sleepScore: number;
   cleanlinessScore: number;
-  budgetScore: number;
+  moveInScore: number;
   interestsScore: number;
   sharedInterests: string[];
+  explanations: string[];
+  dimensions?: {
+    budget: CompatibilityDimensionDetail;
+    location: CompatibilityDimensionDetail;
+    lifestyle: CompatibilityDimensionDetail;
+    food: CompatibilityDimensionDetail;
+    sleep: CompatibilityDimensionDetail;
+    moveIn: CompatibilityDimensionDetail;
+    interests: CompatibilityDimensionDetail;
+  };
+}
+
+export interface UserMatchingPreferencesView {
+  userId: string;
+  weights: MatchingWeightsConfig;
+  normalizedWeights?: MatchingWeightsConfig;
+  updatedAt: string;
+}
+
+export interface UpdateMatchingPreferencesInput {
+  budget?: number;
+  location?: number;
+  lifestyle?: number;
+  food?: number;
+  sleep?: number;
+  moveIn?: number;
+  interests?: number;
+}
+
+export interface ConnectDiscoverFilters {
+  city?: string;
+  locality?: string;
+  gender?: string;
+  minBudget?: number;
+  maxBudget?: number;
+  moveInDate?: string;
+  moveInFlexible?: boolean;
+  roomType?: RoomType;
+  furnishing?: FurnishingStatus;
+  foodHabit?: FoodHabit;
+  sleepRoutine?: SleepRoutine;
+  cleanliness?: CleanlinessLevel;
+  petFriendly?: boolean;
+  smoking?: string;
+  hasRoom?: boolean;
+  intention?: FlatmateIntention;
+  sortBy?: 'compatibility' | 'budget_asc' | 'budget_desc' | 'recent';
+  limit?: number;
+  offset?: number;
 }
 
 export interface ConnectCandidateView {
@@ -595,8 +675,15 @@ export interface ConnectCandidateView {
   gender: string;
   occupation: string;
   city: string;
+  state?: string | null;
+  country?: string | null;
   targetLocalities: string[];
+  budgetMin?: number | null;
   budgetMax: number;
+  moveInDate?: string | null;
+  moveInFlexible?: boolean;
+  roomType?: RoomType | null;
+  furnishing?: FurnishingStatus | null;
   foodHabit: FoodHabit;
   sleepRoutine: SleepRoutine;
   cleanliness: CleanlinessLevel;
