@@ -906,6 +906,53 @@ export async function signInWithBackend(
   }
 }
 
+export async function signInWithGoogleBackend(idToken: string): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+}> {
+  try {
+    const data = await apiClient.post<{
+      accessToken: string;
+      expiresIn: number;
+      user: {
+        id: string;
+        email: string;
+        role: string;
+        accountStatus: string;
+        emailVerified: boolean;
+        phoneVerified: boolean;
+      };
+    }>('/auth/google', { idToken });
+
+    apiClient.setAccessToken(data.accessToken, (data as { refreshToken?: string }).refreshToken);
+
+    let fullName = data.user.email.split('@')[0];
+    try {
+      const profile = await apiClient.get<{ fullName?: string }>('/profiles/me');
+      if (profile.fullName) fullName = profile.fullName;
+    } catch {
+      // Profile fetch optional
+    }
+
+    const appUser: User = {
+      id: data.user.id,
+      name: fullName,
+      email: data.user.email,
+      role: data.user.role as User['role'],
+      emailVerified: data.user.emailVerified,
+      phoneVerified: data.user.phoneVerified,
+      accountStatus: data.user.accountStatus === 'active' ? 'active' : 'suspended',
+      authProvider: 'google',
+    };
+
+    return { success: true, user: appUser };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Google authentication failed. Please try again.';
+    return { success: false, error: message };
+  }
+}
+
 export async function signUpWithBackend(
   params: EmailSignUpParams,
   accountType: 'renter' | 'owner' = 'renter'

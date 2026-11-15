@@ -1,4 +1,5 @@
-import { type INestApplication } from '@nestjs/common';
+import { ERROR_CODES } from '@aashvo/contracts';
+import { type INestApplication, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
@@ -7,13 +8,50 @@ import { configureApp } from '../src/app.factory';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
 import {
+  GOOGLE_TOKEN_VERIFIER_PORT,
+  type GoogleTokenVerifierPort,
+  type GoogleVerifiedPayload,
+} from '../src/modules/auth/services/google-token-verifier.service';
+import {
   MAIL_DISPATCH_PORT,
   type MailDispatchPort,
 } from '../src/modules/auth/services/mail-dispatch.port';
 
+process.env.GOOGLE_CLIENT_ID = 'test-google-client-id.apps.googleusercontent.com';
+
 class TestNoopMailer implements MailDispatchPort {
   async sendVerificationEmail() {}
   async sendPasswordResetEmail() {}
+}
+
+class TestGoogleTokenVerifier implements GoogleTokenVerifierPort {
+  async verify(idToken: string, _expectedAudience: string): Promise<GoogleVerifiedPayload> {
+    if (idToken === 'valid-google-id-token-new-renter-12345') {
+      return {
+        sub: 'google-sub-renter-123456789',
+        email: 'googlerenter@example.com',
+        emailVerified: true,
+        fullName: 'Google Renter Test',
+        avatarUrl: 'https://example.com/avatar.jpg',
+      };
+    }
+    if (idToken === 'valid-google-id-token-link-account-67890') {
+      return {
+        sub: 'google-sub-link-987654321',
+        email: 'googlelinktarget@aashvo.in',
+        emailVerified: true,
+        fullName: 'Linked Google User',
+      };
+    }
+    if (idToken === 'unverified-google-email-token-00000') {
+      return {
+        sub: 'google-sub-unverified',
+        email: 'unverified@example.com',
+        emailVerified: false,
+      };
+    }
+    throw new UnauthorizedException('Google ID token is invalid or has expired.');
+  }
 }
 
 function extractCookie(headers: string[] | string | undefined, name: string): string | null {
@@ -44,6 +82,8 @@ describe('Runtime Database Security & Authorization Gate Integration (PostgreSQL
     })
       .overrideProvider(MAIL_DISPATCH_PORT)
       .useClass(TestNoopMailer)
+      .overrideProvider(GOOGLE_TOKEN_VERIFIER_PORT)
+      .useClass(TestGoogleTokenVerifier)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -465,7 +505,138 @@ describe('Runtime Database Security & Authorization Gate Integration (PostgreSQL
     });
   });
 
-  describe('7. Database Persistence After Complete API Restart', () => {
+  describe('7. Google OAuth Authentication & Safe Account Linking', () => {
+    let googleRegisteredUserId: string;
+
+    beforeAll(async () => {
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            in: ['googlerenter@example.com', 'googlelinktarget@aashvo.in'],
+          },
+        },
+      });
+    });
+
+    it('registers a new user and issues access/refresh tokens upon valid Google ID token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'valid-google-id-token-new-renter-12345' })
+        .expect(200);
+
+      expect(res.body.accessToken).toBeDefined();
+      expect(res.headers['set-cookie']).toBeDefined();
+      expect(res.body.user).toBeDefined();
+      expect(res.body.user.email).toBe('googlerenter@example.com');
+      expect(res.body.user.fullName).toBe('Google Renter Test');
+      expect(res.body.user.role).toBe('renter');
+      expect(res.body.user.emailVerified).toBe(true);
+
+      googleRegisteredUserId = res.body.user.id;
+
+      // Verify OAuth identity in database
+      const identity = await prisma.oAuthIdentity.findUnique({
+        where: {
+          provider_providerSubject: {
+            provider: 'google',
+            providerSubject: 'google-sub-renter-123456789',
+          },
+        },
+      });
+      expect(identity).toBeDefined();
+      expect(identity?.userId).toBe(googleRegisteredUserId);
+      expect(identity?.providerEmail).toBe('googlerenter@example.com');
+      expect(identity?.emailVerified).toBe(true);
+    });
+
+    it('logs into existing user idempotently on subsequent Google ID token presentations', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'valid-google-id-token-new-renter-12345' })
+        .expect(200);
+
+      expect(res.body.user.id).toBe(googleRegisteredUserId);
+      expect(res.body.user.email).toBe('googlerenter@example.com');
+    });
+
+    it('prevents automatic account takeover and requires authorized account linking for existing accounts', async () => {
+      const linkEmail = 'googlelinktarget@aashvo.in';
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: linkEmail,
+          password: 'Password123!',
+          fullName: 'Target User for Linking',
+          accountType: 'renter',
+        })
+        .expect(201);
+
+      const targetUserId = registerRes.body.user.id;
+      const targetUserToken = registerRes.body.accessToken;
+
+      // 1. Unauthenticated Google login for existing email is rejected with 409 Conflict
+      const takeoverAttempt = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'valid-google-id-token-link-account-67890' })
+        .expect(409);
+
+      expect(takeoverAttempt.body.error.code).toBe(ERROR_CODES.CONFLICT);
+      expect(takeoverAttempt.body.error.message).toContain('An account with this email already exists');
+
+      // 2. Authenticated user explicitly links Google account via /api/v1/auth/google/link
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/google/link')
+        .set('Authorization', `Bearer ${targetUserToken}`)
+        .send({ idToken: 'valid-google-id-token-link-account-67890' })
+        .expect(200);
+
+      // 3. Now Google login for this linked account succeeds
+      const linkRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'valid-google-id-token-link-account-67890' })
+        .expect(200);
+
+      expect(linkRes.body.user.id).toBe(targetUserId);
+      expect(linkRes.body.user.email).toBe(linkEmail);
+
+      const identity = await prisma.oAuthIdentity.findUnique({
+        where: {
+          provider_providerSubject: {
+            provider: 'google',
+            providerSubject: 'google-sub-link-987654321',
+          },
+        },
+      });
+      expect(identity).toBeDefined();
+      expect(identity?.userId).toBe(targetUserId);
+      expect(identity?.emailVerified).toBe(true);
+    });
+
+    it('rejects Google authentication when Google email is unverified', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'unverified-google-email-token-00000' })
+        .expect(400);
+
+      expect(res.body.error?.message || res.body.message).toContain('not verified');
+    });
+
+    it('rejects invalid or forged Google ID tokens with 401 Unauthorized', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'forged-invalid-id-token-xyz-12345' })
+        .expect(401);
+    });
+
+    it('rejects malformed or short tokens with 400 Bad Request', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'short' })
+        .expect(400);
+    });
+  });
+
+  describe('8. Database Persistence After Complete API Restart', () => {
     it('preserves all state across complete NestJS process destruction and reincarnation', async () => {
       // 1. Record a property in App 1
       const propId = randomUUID();
@@ -500,6 +671,8 @@ describe('Runtime Database Security & Authorization Gate Integration (PostgreSQL
       })
         .overrideProvider(MAIL_DISPATCH_PORT)
         .useClass(TestNoopMailer)
+        .overrideProvider(GOOGLE_TOKEN_VERIFIER_PORT)
+        .useClass(TestGoogleTokenVerifier)
         .compile();
 
       const app2 = moduleRef2.createNestApplication();

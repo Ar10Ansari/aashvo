@@ -31,6 +31,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      DATABASE_URL: postgresql://ci_user:ci_local_password_only@localhost:5432/aashvo_test
+      DIRECT_URL: postgresql://ci_user:ci_local_password_only@localhost:5432/aashvo_test
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -41,14 +46,11 @@ jobs:
 
       - run: npm ci
       - run: npm run contracts:build
+      - name: Validate Prisma schema
+        run: npm --workspace=apps/api run prisma:validate
       - name: Apply Prisma migrations & PostgreSQL constraints
         run: npm --workspace=apps/api exec prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://ci_user:ci_local_password_only@localhost:5432/aashvo_test
       - run: npm --workspace=apps/api run prisma:generate
       - run: npm --workspace=apps/api run typecheck
       - run: npm run api:build
       - run: npm run api:test
-        env:
-          DATABASE_URL: postgresql://ci_user:ci_local_password_only@localhost:5432/aashvo_test
-

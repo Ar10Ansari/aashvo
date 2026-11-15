@@ -7,17 +7,65 @@
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. CUSTOM TYPES
-CREATE TYPE user_role AS ENUM ('renter', 'owner', 'broker', 'admin');
-CREATE TYPE property_type AS ENUM ('apartment', 'builder_floor', 'villa', 'gated_society');
-CREATE TYPE room_type AS ENUM ('private_room', 'shared_room', 'entire_flat');
-CREATE TYPE provider_type AS ENUM ('owner', 'tenant_flatmate', 'verified_manager');
-CREATE TYPE furnishing_status AS ENUM ('fully_furnished', 'semi_furnished', 'unfurnished');
-CREATE TYPE gender_preference AS ENUM ('any', 'female_only', 'male_only');
-CREATE TYPE moderation_status AS ENUM ('pending_review', 'active', 'paused', 'rented', 'rejected');
-CREATE TYPE food_habit AS ENUM ('Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan');
-CREATE TYPE sleep_routine AS ENUM ('Early Bird', 'Night Owl', 'Flexible');
-CREATE TYPE cleanliness_level AS ENUM ('Spotless', 'Moderate', 'Relaxed');
+-- 2. CUSTOM TYPES (Idempotent creation with comprehensive label validation)
+DO $$
+DECLARE
+    missing_labels text[];
+    expected_labels text[] := ARRAY['renter', 'owner', 'broker', 'admin'];
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('renter', 'owner', 'broker', 'admin');
+    ELSE
+        SELECT ARRAY(
+            SELECT unnest(expected_labels)
+            EXCEPT
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON t.oid = e.enumtypid
+            WHERE t.typname = 'user_role'
+        ) INTO missing_labels;
+
+        IF cardinality(missing_labels) > 0 THEN
+            RAISE EXCEPTION 'Incompatible existing enum "user_role": missing required labels: %', array_to_string(missing_labels, ', ');
+        END IF;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'property_type') THEN
+        CREATE TYPE property_type AS ENUM ('apartment', 'builder_floor', 'villa', 'gated_society');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'room_type') THEN
+        CREATE TYPE room_type AS ENUM ('private_room', 'shared_room', 'entire_flat');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'provider_type') THEN
+        CREATE TYPE provider_type AS ENUM ('owner', 'tenant_flatmate', 'verified_manager');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'furnishing_status') THEN
+        CREATE TYPE furnishing_status AS ENUM ('fully_furnished', 'semi_furnished', 'unfurnished');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gender_preference') THEN
+        CREATE TYPE gender_preference AS ENUM ('any', 'female_only', 'male_only');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'moderation_status') THEN
+        CREATE TYPE moderation_status AS ENUM ('pending_review', 'active', 'paused', 'rented', 'rejected');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'food_habit') THEN
+        CREATE TYPE food_habit AS ENUM ('Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sleep_routine') THEN
+        CREATE TYPE sleep_routine AS ENUM ('Early Bird', 'Night Owl', 'Flexible');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cleanliness_level') THEN
+        CREATE TYPE cleanliness_level AS ENUM ('Spotless', 'Moderate', 'Relaxed');
+    END IF;
+END $$;
 
 -- 3. PROFILES TABLE
 CREATE TABLE IF NOT EXISTS public.profiles (

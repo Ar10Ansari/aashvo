@@ -163,3 +163,12 @@ export class MessageAcceptedDto {
   message!: string;
 }
 
+export class GoogleAuthDto {
+  @ApiProperty({
+    description: 'Verified ID token issued by Google Identity Services',
+    example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1Ni...7g',
+  })
+  @IsString()
+  @MinLength(16)
+  idToken!: string;
+}

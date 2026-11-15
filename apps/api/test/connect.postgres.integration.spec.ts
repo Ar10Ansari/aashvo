@@ -762,9 +762,10 @@ describe('Aashvo Connect Domain & Mutual Matching Integration (PostgreSQL 16)', 
     });
 
     it('issues refreshToken on login and allows rotation via POST /api/v1/auth/refresh body', async () => {
-      // 1. Login User A
+      // 1. Login User A (native mobile client receiving body refresh token)
       const loginRes = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
+        .set('x-client-platform', 'ios')
         .send({
           email: 'userA@connect.test',
           password: 'Str0ngPassword#2026',
@@ -776,9 +777,10 @@ describe('Aashvo Connect Domain & Mutual Matching Integration (PostgreSQL 16)', 
 
       const rawRefreshToken = loginRes.body.refreshToken;
 
-      // 2. Rotate via /auth/refresh with body token
+      // 2. Rotate via /auth/refresh with body token (mobile platform)
       const refreshRes = await request(app.getHttpServer())
         .post('/api/v1/auth/refresh')
+        .set('x-client-platform', 'ios')
         .send({ refreshToken: rawRefreshToken })
         .expect(200);
 

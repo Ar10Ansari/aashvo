@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   signUpWithSupabase,
   signInWithSupabase,
+  signInWithGoogleBackend,
   resetPasswordWithSupabase,
   updatePasswordWithSupabase,
   resendVerificationEmailWithSupabase,
@@ -15,6 +16,7 @@ import {
   sanitizeStoredUser,
   canPerformAdminAction,
 } from '../services/authorizationService';
+import { apiClient } from '../services/apiClient';
 import { User } from '../types';
 
 describe('Real Authentication Repair & Backend Integrity (Phase 2)', () => {
@@ -370,6 +372,81 @@ describe('Real Authentication Repair & Backend Integrity (Phase 2)', () => {
         // Any subsequent 401 must NOT trigger another refresh
         await expect(apiClient.request('/protected-data')).rejects.toThrow();
         expect(refreshCallCount).toBe(1); // Still exactly 1, no loop!
+      } finally {
+        global.fetch = originalFetch;
+        apiClient.clearSession();
+      }
+    });
+  });
+
+  describe('8. Google OAuth Integration & Security Invariants', () => {
+    it('successfully processes Google ID token exchange with backend API', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = input.toString();
+        if (url.includes('/auth/google')) {
+          const body = JSON.parse(init?.body as string);
+          expect(body.idToken).toBe('mock-google-id-token-123456');
+          return new Response(
+            JSON.stringify({
+              accessToken: 'google-access-jwt',
+              refreshToken: 'google-refresh-token',
+              expiresIn: 900,
+              user: {
+                id: 'google-user-uuid',
+                email: 'googleuser@example.com',
+                role: 'renter',
+                accountStatus: 'active',
+                emailVerified: true,
+                phoneVerified: false,
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (url.includes('/profiles/me')) {
+          return new Response(
+            JSON.stringify({ fullName: 'Google User Verified' }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      }) as typeof fetch;
+
+      try {
+        const res = await signInWithGoogleBackend('mock-google-id-token-123456');
+        expect(res.success).toBe(true);
+        expect(res.user).toBeDefined();
+        expect(res.user?.email).toBe('googleuser@example.com');
+        expect(res.user?.name).toBe('Google User Verified');
+        expect(res.user?.authProvider).toBe('google');
+        expect(res.user?.emailVerified).toBe(true);
+        expect(apiClient.getAccessToken()).toBe('google-access-jwt');
+      } finally {
+        global.fetch = originalFetch;
+        apiClient.clearSession();
+      }
+    });
+
+    it('returns honest error message when Google authentication backend rejects token', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = (async (): Promise<Response> => {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Google ID token is invalid or has expired.',
+            },
+          }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as typeof fetch;
+
+      try {
+        const res = await signInWithGoogleBackend('invalid-google-token');
+        expect(res.success).toBe(false);
+        expect(res.user).toBeUndefined();
+        expect(res.error).toBeDefined();
       } finally {
         global.fetch = originalFetch;
         apiClient.clearSession();

@@ -129,6 +129,7 @@ const rawEnvSchema = z
       .enum(['true', 'false'])
       .optional()
       .transform((val) => (val === undefined ? undefined : val === 'true')),
+    COOKIE_SAME_SITE: z.enum(['lax', 'none', 'strict']).optional(),
     WEB_APP_URL: z.string().url().default('http://localhost:5173'),
     CORS_ALLOWED_ORIGINS: z
       .string()
@@ -145,6 +146,8 @@ const rawEnvSchema = z
       }),
     THROTTLE_TTL_MS: z.coerce.number().int().min(1000).default(60000),
     THROTTLE_LIMIT: z.coerce.number().int().min(1).default(120),
+    GOOGLE_CLIENT_ID: z.string().trim().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().trim().optional(),
   })
   .superRefine((cfg, ctx) => {
     const isHostedEnv = cfg.NODE_ENV === 'production' || cfg.NODE_ENV === 'staging';

@@ -31,6 +31,7 @@ import {
   AuthUserDto,
   ChangePasswordDto,
   ForgotPasswordDto,
+  GoogleAuthDto,
   LoginDto,
   MessageAcceptedDto,
   RefreshDto,
@@ -63,6 +64,7 @@ function buildRequestMetadata(request: RequestWithId): RequestMetadata {
 @Controller('api/v1/auth')
 export class AuthController {
   private readonly cookieSecure: boolean;
+  private readonly cookieSameSite: 'lax' | 'none' | 'strict';
   private readonly cookieName: string;
   private readonly allowedOrigins: string[];
 
@@ -77,6 +79,9 @@ export class AuthController {
         ? explicitSecure
         : env === 'production' || env === 'staging';
     this.cookieName = this.cookieSecure ? '__Host-aashvo_rt' : 'aashvo_rt';
+    const explicitSameSite = configService.get('COOKIE_SAME_SITE', { infer: true });
+    this.cookieSameSite =
+      explicitSameSite ?? (env === 'production' && this.cookieSecure ? 'none' : 'lax');
     this.allowedOrigins = configService.get('CORS_ALLOWED_ORIGINS', { infer: true });
   }
 
@@ -84,7 +89,7 @@ export class AuthController {
     response.cookie(this.cookieName, token, {
       httpOnly: true,
       secure: this.cookieSecure,
-      sameSite: this.cookieSecure ? 'none' : 'lax',
+      sameSite: this.cookieSameSite,
       path: '/',
       expires: expiresAt,
     });
@@ -94,7 +99,7 @@ export class AuthController {
     response.clearCookie(this.cookieName, {
       httpOnly: true,
       secure: this.cookieSecure,
-      sameSite: this.cookieSecure ? 'none' : 'lax',
+      sameSite: this.cookieSameSite,
       path: '/',
     });
   }
@@ -121,7 +126,7 @@ export class AuthController {
     return {
       accessToken: session.accessToken,
       expiresIn: session.expiresIn,
-      refreshToken: session.rawRefreshToken,
+      refreshToken: platform !== 'web' ? session.rawRefreshToken : undefined,
       user: session.user,
     };
   }
@@ -157,6 +162,45 @@ export class AuthController {
     const meta = buildRequestMetadata(request);
     const session = await this.authService.login(dto, meta);
     return this.toClientResponse(session, meta.clientPlatform, response);
+  }
+
+  @Post('google')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 15, ttl: 900000 } })
+  @ApiOperation({ summary: 'Sign in or register with verified Google OAuth ID token' })
+  @ApiResponse({ status: 200, type: AuthSessionResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid Google token or unverified email' })
+  @ApiResponse({ status: 401, description: 'Expired or untrusted Google token' })
+  @ApiResponse({ status: 409, description: 'Account with email already exists; existing credentials required' })
+  async googleAuth(
+    @Body() dto: GoogleAuthDto,
+    @Req() request: RequestWithId,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthSessionResponseDto> {
+    this.assertCookieOriginAllowed(request);
+    const meta = buildRequestMetadata(request);
+    const session = await this.authService.loginWithGoogle(dto, meta);
+    return this.toClientResponse(session, meta.clientPlatform, response);
+  }
+
+  @Post('google/link')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('BearerAuth')
+  @ApiOperation({ summary: 'Link verified Google account to currently authenticated user' })
+  @ApiResponse({ status: 200, type: MessageAcceptedDto })
+  @ApiResponse({ status: 400, description: 'Google email does not match user email or unverified' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 409, description: 'Google account already linked to another user' })
+  async linkGoogle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: GoogleAuthDto,
+    @Req() request: RequestWithId,
+  ): Promise<MessageAcceptedDto> {
+    this.assertCookieOriginAllowed(request);
+    const meta = buildRequestMetadata(request);
+    const res = await this.authService.linkGoogleAccount(user.id, dto, meta);
+    return { message: res.message };
   }
 
   @Post('refresh')

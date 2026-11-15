@@ -1,18 +1,26 @@
 import { ERROR_CODES, type UserRole } from '@aashvo/contracts';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthTokenPurpose, type Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import type { AppConfig } from '../../infrastructure/config/env.schema';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.module';
 import { UsersService, mapRecordToUserProfileView } from '../users/users.service';
 import type { UserProfileView } from '../users/users.types';
+import type { GoogleAuthDto } from './dto/auth.dto';
+import {
+  GOOGLE_TOKEN_VERIFIER_PORT,
+  type GoogleTokenVerifierPort,
+} from './services/google-token-verifier.service';
 import { JwtTokenService } from './services/jwt-token.service';
 import { MAIL_DISPATCH_PORT, type MailDispatchPort } from './services/mail-dispatch.port';
 import { PasswordService } from './services/password.service';
@@ -40,9 +48,19 @@ export interface IssuedAuthSession {
   user: UserProfileView;
 }
 
+function isPrismaUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: unknown }).code === 'P2002'
+  );
+}
+
 @Injectable()
 export class AuthService {
   private readonly webAppUrl: string;
+  private readonly googleClientId?: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,9 +70,11 @@ export class AuthService {
     private readonly refreshSessions: RefreshSessionService,
     private readonly audit: AuditService,
     @Inject(MAIL_DISPATCH_PORT) private readonly mailDispatch: MailDispatchPort,
+    @Inject(GOOGLE_TOKEN_VERIFIER_PORT) private readonly googleTokenVerifier: GoogleTokenVerifierPort,
     configService: ConfigService<AppConfig, true>,
   ) {
     this.webAppUrl = configService.get('WEB_APP_URL', { infer: true }).replace(/\/$/, '');
+    this.googleClientId = configService.get('GOOGLE_CLIENT_ID', { infer: true });
   }
 
   async register(
@@ -640,6 +660,337 @@ export class AuthService {
         },
         tx,
       );
+    });
+  }
+
+  async loginWithGoogle(dto: GoogleAuthDto, meta: RequestMetadata): Promise<IssuedAuthSession> {
+    if (!this.googleClientId) {
+      throw new ServiceUnavailableException({
+        code: ERROR_CODES.SERVICE_UNAVAILABLE,
+        message: 'Google authentication is not configured on this server.',
+      });
+    }
+
+    const claims = await this.googleTokenVerifier.verify(dto.idToken, this.googleClientId);
+
+    if (!claims.emailVerified) {
+      throw new BadRequestException({
+        code: ERROR_CODES.BAD_REQUEST,
+        message: 'Google account email is not verified.',
+      });
+    }
+
+    if (!claims.email || !claims.sub) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: 'Google token is missing required claims.',
+      });
+    }
+
+    const normalizedEmail = claims.email.trim().toLowerCase();
+
+    try {
+      const { session, userView } = await this.prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          const oauthIdentity = await tx.oAuthIdentity.findUnique({
+            where: {
+              provider_providerSubject: {
+                provider: 'google',
+                providerSubject: claims.sub,
+              },
+            },
+            include: {
+              user: {
+                include: { profile: true },
+              },
+            },
+          });
+
+          let targetUser:
+            | (Prisma.UserGetPayload<{ include: { profile: true } }>)
+            | null = null;
+
+          if (oauthIdentity) {
+            targetUser = oauthIdentity.user;
+            if (targetUser.accountStatus !== 'active') {
+              throw new ForbiddenException({
+                code: ERROR_CODES.ACCOUNT_SUSPENDED,
+                message: 'Account is suspended or inactive.',
+              });
+            }
+
+            await tx.oAuthIdentity.update({
+              where: { id: oauthIdentity.id },
+              data: {
+                lastSignInAt: new Date(),
+                providerEmail: normalizedEmail,
+                rawClaims: claims as unknown as Prisma.InputJsonValue,
+              },
+            });
+
+            if (targetUser.profile && !targetUser.profile.emailVerified) {
+              await tx.profile.update({
+                where: { id: targetUser.id },
+                data: { emailVerified: true },
+              });
+              targetUser.profile.emailVerified = true;
+            }
+          } else {
+            const existingUser = await tx.user.findUnique({
+              where: { email: normalizedEmail },
+              include: { profile: true },
+            });
+
+            if (existingUser) {
+              // SECURITY ENFORCEMENT: Block automatic account takeover.
+              // Existing accounts must authenticate with existing credentials and explicitly authorize linking.
+              throw new ConflictException({
+                code: ERROR_CODES.CONFLICT,
+                message:
+                  'An account with this email already exists. Please sign in with your email and password, then link your Google account in Settings.',
+              });
+            }
+
+            const newUserId = randomUUID();
+            const fullName =
+              claims.fullName?.trim() ||
+              normalizedEmail.split('@')[0];
+
+            targetUser = await tx.user.create({
+              data: {
+                id: newUserId,
+                email: normalizedEmail,
+                passwordHash: null,
+                passwordHashAlgorithm: null,
+                role: 'renter',
+                accountStatus: 'active',
+                profile: {
+                  create: {
+                    email: normalizedEmail,
+                    fullName,
+                    role: 'renter',
+                    avatarUrl: claims.avatarUrl ?? null,
+                    emailVerified: true,
+                    phoneVerified: false,
+                    idVerified: false,
+                  },
+                },
+                oauthIdentities: {
+                  create: {
+                    provider: 'google',
+                    providerSubject: claims.sub,
+                    providerEmail: normalizedEmail,
+                    emailVerified: true,
+                    rawClaims: claims as unknown as Prisma.InputJsonValue,
+                    lastSignInAt: new Date(),
+                  },
+                },
+              },
+              include: { profile: true },
+            });
+          }
+
+          if (!targetUser) {
+            throw new UnauthorizedException({
+              code: ERROR_CODES.UNAUTHORIZED,
+              message: 'Unable to resolve or create user account.',
+            });
+          }
+
+          await tx.user.update({
+            where: { id: targetUser.id },
+            data: {
+              lastLoginAt: new Date(),
+              failedLoginAttempts: 0,
+              lockedUntil: null,
+            },
+          });
+
+          const createdSession = await this.refreshSessions.createSession({
+            userId: targetUser.id,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            clientPlatform: meta.clientPlatform,
+            tx,
+          });
+
+          await this.audit.record(
+            {
+              actorId: targetUser.id,
+              actorRole: targetUser.role,
+              eventType: 'auth.oauth_login',
+              entityType: 'user',
+              entityId: targetUser.id,
+              outcome: 'success',
+              ipAddress: meta.ipAddress,
+              requestId: meta.requestId,
+              metadata: {
+                provider: 'google',
+                email: normalizedEmail,
+              },
+            },
+            tx,
+          );
+
+          return {
+            session: createdSession,
+            userView: mapRecordToUserProfileView(targetUser),
+          };
+        },
+      );
+
+      const accessToken = this.jwtTokenService.signAccessToken({
+        userId: userView.id,
+        role: userView.role,
+        sessionFamilyId: session.familyId,
+      });
+
+      return {
+        accessToken,
+        expiresIn: this.jwtTokenService.accessTtlSeconds,
+        rawRefreshToken: session.rawRefreshToken,
+        refreshExpiresAt: session.expiresAt,
+        user: userView,
+      };
+    } catch (err: unknown) {
+      if (isPrismaUniqueViolation(err)) {
+        // Handle database concurrency races:
+        const racedIdentity = await this.prisma.oAuthIdentity.findUnique({
+          where: {
+            provider_providerSubject: {
+              provider: 'google',
+              providerSubject: claims.sub,
+            },
+          },
+        });
+        if (racedIdentity) {
+          return this.loginWithGoogle(dto, meta);
+        }
+
+        throw new ConflictException({
+          code: ERROR_CODES.CONFLICT,
+          message:
+            'An account with this email already exists. Please sign in with your email and password, then link your Google account in Settings.',
+        });
+      }
+      throw err;
+    }
+  }
+
+  async linkGoogleAccount(
+    userId: string,
+    dto: GoogleAuthDto,
+    meta: RequestMetadata,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!this.googleClientId) {
+      throw new ServiceUnavailableException({
+        code: ERROR_CODES.SERVICE_UNAVAILABLE,
+        message: 'Google authentication is not configured on this server.',
+      });
+    }
+
+    const claims = await this.googleTokenVerifier.verify(dto.idToken, this.googleClientId);
+
+    if (!claims.emailVerified) {
+      throw new BadRequestException({
+        code: ERROR_CODES.BAD_REQUEST,
+        message: 'Google account email is not verified.',
+      });
+    }
+
+    if (!claims.email || !claims.sub) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: 'Google token is missing required claims.',
+      });
+    }
+
+    const normalizedGoogleEmail = claims.email.trim().toLowerCase();
+
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        include: { profile: true },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException({
+          code: ERROR_CODES.UNAUTHORIZED,
+          message: 'User account not found.',
+        });
+      }
+
+      if (user.accountStatus !== 'active') {
+        throw new ForbiddenException({
+          code: ERROR_CODES.ACCOUNT_SUSPENDED,
+          message: 'Account is suspended or inactive.',
+        });
+      }
+
+      if (user.email.toLowerCase() !== normalizedGoogleEmail) {
+        throw new BadRequestException({
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'Google account email does not match your AASHVO account email.',
+        });
+      }
+
+      const existingIdentity = await tx.oAuthIdentity.findUnique({
+        where: {
+          provider_providerSubject: {
+            provider: 'google',
+            providerSubject: claims.sub,
+          },
+        },
+      });
+
+      if (existingIdentity) {
+        if (existingIdentity.userId === user.id) {
+          return { success: true, message: 'Google account is already linked.' };
+        }
+        throw new ConflictException({
+          code: ERROR_CODES.CONFLICT,
+          message: 'This Google account is already linked to another AASHVO account.',
+        });
+      }
+
+      await tx.oAuthIdentity.create({
+        data: {
+          userId: user.id,
+          provider: 'google',
+          providerSubject: claims.sub,
+          providerEmail: normalizedGoogleEmail,
+          emailVerified: true,
+          rawClaims: claims as unknown as Prisma.InputJsonValue,
+          lastSignInAt: new Date(),
+        },
+      });
+
+      if (user.profile && !user.profile.emailVerified) {
+        await tx.profile.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        });
+      }
+
+      await this.audit.record(
+        {
+          actorId: user.id,
+          actorRole: user.role,
+          eventType: 'auth.oauth_linked',
+          entityType: 'user',
+          entityId: user.id,
+          outcome: 'success',
+          ipAddress: meta.ipAddress,
+          requestId: meta.requestId,
+          metadata: {
+            provider: 'google',
+            email: normalizedGoogleEmail,
+          },
+        },
+        tx,
+      );
+
+      return { success: true, message: 'Google account linked successfully.' };
     });
   }
 

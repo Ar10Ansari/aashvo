@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import {
   signInWithBackend,
+  signInWithGoogleBackend,
   signUpWithBackend,
   forgotPasswordWithBackend,
   resetPasswordWithBackend,
@@ -218,8 +219,106 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     }
   };
 
-  const handleGoogleAuth = () => {
-    setErrorMessage('Google OAuth is disabled in this environment. Please sign in or register with your email and password.');
+  const handleGoogleAuth = async () => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      setErrorMessage(
+        'Google OAuth is not configured in this environment (missing VITE_GOOGLE_CLIENT_ID). Please sign in or register with your email and password.',
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+
+      if (typeof window !== 'undefined' && !(window as any).google?.accounts?.id) {
+        await new Promise<void>((resolve, reject) => {
+          const existing = document.getElementById('google-gsi-script');
+          if (existing) {
+            existing.addEventListener('load', () => resolve());
+            existing.addEventListener('error', () =>
+              reject(new Error('Failed to load Google Identity Services.')),
+            );
+            return;
+          }
+          const script = document.createElement('script');
+          script.id = 'google-gsi-script';
+          script.src = 'https://accounts.google.com/gsi/client';
+          script.async = true;
+          script.defer = true;
+          script.onload = () => resolve();
+          script.onerror = () =>
+            reject(new Error('Failed to load Google Identity Services.'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const google = (window as any).google;
+      if (!google?.accounts?.id) {
+        throw new Error('Google Identity Services SDK could not be initialized.');
+      }
+
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response: { credential?: string }) => {
+          if (!response?.credential) {
+            setErrorMessage('Google authentication did not return a credential.');
+            setLoading(false);
+            return;
+          }
+          try {
+            setLoading(true);
+            const res = await signInWithGoogleBackend(response.credential);
+            if (res.success && res.user) {
+              setCurrentUser(res.user);
+              onClose();
+            } else {
+              setErrorMessage(res.error || 'Google sign-in failed.');
+            }
+          } catch (err: unknown) {
+            setErrorMessage(
+              err instanceof Error ? err.message : 'Google sign-in failed.',
+            );
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+
+      google.accounts.id.prompt((notification: any) => {
+        if (
+          notification?.isNotDisplayed?.() ||
+          notification?.isSkippedMoment?.() ||
+          notification?.isDismissedMoment?.()
+        ) {
+          setLoading(false);
+          if (notification?.isNotDisplayed?.()) {
+            const reason =
+              typeof notification.getNotDisplayedReason === 'function'
+                ? notification.getNotDisplayedReason()
+                : '';
+            if (reason === 'unregistered_origin') {
+              setErrorMessage(
+                'Google Sign-In failed: This origin is not authorized in Google Cloud Console. Please check Authorized JavaScript Origins.',
+              );
+            } else if (
+              reason === 'opt_out_or_nested_iframe' ||
+              reason === 'suppressed_by_user'
+            ) {
+              setErrorMessage(
+                'Google Sign-In prompt was suppressed by browser settings. Please sign in or register with your email and password.',
+              );
+            }
+          }
+        }
+      });
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to initialize Google Sign-In.',
+      );
+      setLoading(false);
+    }
   };
 
   return (
