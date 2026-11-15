@@ -84,7 +84,7 @@ export class AuthController {
     response.cookie(this.cookieName, token, {
       httpOnly: true,
       secure: this.cookieSecure,
-      sameSite: 'lax',
+      sameSite: this.cookieSecure ? 'none' : 'lax',
       path: '/',
       expires: expiresAt,
     });
@@ -94,7 +94,7 @@ export class AuthController {
     response.clearCookie(this.cookieName, {
       httpOnly: true,
       secure: this.cookieSecure,
-      sameSite: 'lax',
+      sameSite: this.cookieSecure ? 'none' : 'lax',
       path: '/',
     });
   }
@@ -116,11 +116,6 @@ export class AuthController {
   ): AuthSessionResponseDto {
     if (platform === 'web') {
       this.setRefreshCookie(response, session.rawRefreshToken, session.refreshExpiresAt);
-      return {
-        accessToken: session.accessToken,
-        expiresIn: session.expiresIn,
-        user: session.user,
-      };
     }
 
     return {

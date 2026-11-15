@@ -80,7 +80,34 @@ export class BlockUserDto {
   reason?: string;
 }
 
+export class BlockUserBodyDto {
+  @IsUUID()
+  @IsNotEmpty()
+  targetUserId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  reason?: string;
+}
+
 export class ReportUserDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  reason!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  details?: string;
+}
+
+export class ReportUserBodyDto {
+  @IsUUID()
+  @IsNotEmpty()
+  targetUserId!: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)

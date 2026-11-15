@@ -871,7 +871,7 @@ export async function signInWithBackend(
       };
     }>('/auth/login', { email: email.trim().toLowerCase(), password });
 
-    apiClient.setAccessToken(data.accessToken);
+    apiClient.setAccessToken(data.accessToken, (data as { refreshToken?: string }).refreshToken);
 
     let fullName = data.user.email.split('@')[0];
     try {
@@ -933,7 +933,7 @@ export async function signUpWithBackend(
       accountType,
     });
 
-    apiClient.setAccessToken(data.accessToken);
+    apiClient.setAccessToken(data.accessToken, (data as { refreshToken?: string }).refreshToken);
 
     const appUser: User = {
       id: data.user.id,
@@ -1001,6 +1001,16 @@ export async function verifyEmailWithBackend(token: string): Promise<{ success: 
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Verification token invalid or expired';
+    return { success: false, error: message };
+  }
+}
+
+export async function resendVerificationWithBackend(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const res = await apiClient.post<{ message: string }>('/auth/resend-verification', { email: email.trim().toLowerCase() });
+    return { success: true, message: res.message || 'Verification email sent. Please check your inbox.' };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to resend verification email';
     return { success: false, error: message };
   }
 }

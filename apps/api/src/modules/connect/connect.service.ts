@@ -140,43 +140,48 @@ export class ConnectService {
    * - Returns sanitized PII only (approximate locality, display name, photo)
    */
   async discoverCandidates(
-    callerId: string,
+    callerId: string | null | undefined,
     query: ConnectDiscoverQueryDto,
   ): Promise<ConnectCandidateView[]> {
-    // 1. Fetch caller flatmate profile if available
-    const callerFlatmate = await this.prisma.flatmateProfile.findUnique({
-      where: { userId: callerId },
-    });
+    let callerFlatmate = null;
+    const excludedIds: string[] = [];
 
-    // 2. Fetch all blocked user IDs (both directions)
-    const [blocksInitiated, blocksReceived] = await Promise.all([
-      this.prisma.userBlock.findMany({
-        where: { blockerId: callerId },
-        select: { blockedId: true },
-      }),
-      this.prisma.userBlock.findMany({
-        where: { blockedId: callerId },
-        select: { blockerId: true },
-      }),
-    ]);
-    const blockedUserIds = new Set([
-      ...blocksInitiated.map((b) => b.blockedId),
-      ...blocksReceived.map((b) => b.blockerId),
-    ]);
+    if (callerId) {
+      // 1. Fetch caller flatmate profile if available
+      callerFlatmate = await this.prisma.flatmateProfile.findUnique({
+        where: { userId: callerId },
+      });
 
-    // 3. Fetch already swiped user IDs by caller
-    const existingSwipes = await this.prisma.flatmateInterest.findMany({
-      where: { senderId: callerId },
-      select: { targetUserId: true },
-    });
-    const swipedUserIds = new Set(existingSwipes.map((s) => s.targetUserId));
+      // 2. Fetch all blocked user IDs (both directions)
+      const [blocksInitiated, blocksReceived] = await Promise.all([
+        this.prisma.userBlock.findMany({
+          where: { blockerId: callerId },
+          select: { blockedId: true },
+        }),
+        this.prisma.userBlock.findMany({
+          where: { blockedId: callerId },
+          select: { blockerId: true },
+        }),
+      ]);
+      const blockedUserIds = new Set([
+        ...blocksInitiated.map((b) => b.blockedId),
+        ...blocksReceived.map((b) => b.blockerId),
+      ]);
 
-    // Excluded IDs list
-    const excludedIds = Array.from(new Set([callerId, ...blockedUserIds, ...swipedUserIds]));
+      // 3. Fetch already swiped user IDs by caller
+      const existingSwipes = await this.prisma.flatmateInterest.findMany({
+        where: { senderId: callerId },
+        select: { targetUserId: true },
+      });
+      const swipedUserIds = new Set(existingSwipes.map((s) => s.targetUserId));
+
+      // Excluded IDs list
+      excludedIds.push(...Array.from(new Set([callerId, ...blockedUserIds, ...swipedUserIds])));
+    }
 
     // 4. Build query filters
     const where: Prisma.FlatmateProfileWhereInput = {
-      userId: { notIn: excludedIds },
+      ...(excludedIds.length > 0 ? { userId: { notIn: excludedIds } } : {}),
       age: { gte: 18 },
       discoveryHidden: false,
       profile: {

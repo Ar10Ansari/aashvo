@@ -13,16 +13,15 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import {
-  signInWithSupabase,
-  signUpWithSupabase,
-  resetPasswordWithSupabase,
-  updatePasswordWithSupabase,
-  resendVerificationEmailWithSupabase,
-  initiateGoogleOAuthWithSupabase,
+  signInWithBackend,
+  signUpWithBackend,
+  forgotPasswordWithBackend,
+  resetPasswordWithBackend,
+  resendVerificationWithBackend,
   isValidPassword,
   isValidEmail,
 } from '../../services/authService';
-import { isLiveBackendConfigured } from '../../services/supabase';
+import { apiClient } from '../../services/apiClient';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -73,15 +72,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setLoading(true);
     setEmailUnconfirmed(false);
     try {
-      const res = await signInWithSupabase(email, password);
+      const res = await signInWithBackend(email, password);
       if (res.success && res.user) {
         setCurrentUser(res.user);
         onClose();
       } else {
         setErrorMessage(res.error || 'Invalid email or password.');
-        if (res.emailUnconfirmed) {
-          setEmailUnconfirmed(true);
-        }
       }
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Sign-in failed.');
@@ -97,7 +93,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     }
     setResendingEmail(true);
     try {
-      const res = await resendVerificationEmailWithSupabase(email);
+      const res = await resendVerificationWithBackend(email);
       if (res.success) {
         setSuccessMessage(res.message || 'Verification email resent! Please check your inbox.');
       } else {
@@ -133,19 +129,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await signUpWithSupabase({
+      const res = await signUpWithBackend({
         email,
         password,
         fullName,
       });
 
       if (res.success && res.user) {
-        if (res.emailConfirmationRequired) {
-          setSuccessMessage('Registration successful! Please check your email inbox to verify your account.');
-        } else {
-          setCurrentUser(res.user);
-          onClose();
-        }
+        setCurrentUser(res.user);
+        onClose();
       } else {
         setErrorMessage(res.error || 'Registration failed.');
       }
@@ -168,11 +160,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await resetPasswordWithSupabase(email);
+      const res = await forgotPasswordWithBackend(email);
       if (res.success) {
-        setSuccessMessage(res.message);
+        setSuccessMessage('If an account exists with this email, password reset instructions have been sent to your inbox.');
       } else {
-        setErrorMessage(res.error || res.message);
+        setErrorMessage(res.error || 'Failed to request password reset.');
       }
     } catch {
       setSuccessMessage('If an account exists with this email, password reset instructions have been sent.');
@@ -197,9 +189,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       return;
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const recoveryToken = urlParams.get('token') || '';
+    if (!recoveryToken) {
+      setErrorMessage('Missing password reset token in URL. Please open the link received in your reset email.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await updatePasswordWithSupabase(password);
+      const res = await resetPasswordWithBackend(recoveryToken, password);
       if (res.success) {
         setSuccessMessage('Your password has been updated successfully! Please sign in with your new password.');
         setTimeout(() => {
@@ -219,21 +218,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     }
   };
 
-  const handleGoogleAuth = async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await initiateGoogleOAuthWithSupabase();
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      } else {
-        setErrorMessage(res.error || 'Google OAuth failed to initialize.');
-      }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Google OAuth failed.');
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleAuth = () => {
+    setErrorMessage('Google OAuth is disabled in this environment. Please sign in or register with your email and password.');
   };
 
   return (
@@ -255,11 +241,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-forest-700">
                 Aashvo Account
               </span>
-              {isLiveBackendConfigured && (
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-300">
-                  Supabase Live
-                </span>
-              )}
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-300">
+                Cloud API Active
+              </span>
             </div>
             <h2 id="modal-auth-title" className="font-serif text-2xl font-bold text-charcoal-900 mt-0.5">
               {mode === 'signin' && 'Welcome Back'}
@@ -327,10 +311,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <div className="p-6">
           {/* Backend Engine Health Indicator */}
           <div className="mb-4 px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between border bg-ivory-100/80 border-charcoal-200/50">
-            <span className="text-charcoal-600">Database Engine:</span>
-            <span className={`inline-flex items-center gap-1.5 font-semibold ${isLiveBackendConfigured ? 'text-forest-800' : 'text-amber-800'}`}>
-              <span className={`w-2 h-2 rounded-full ${isLiveBackendConfigured ? 'bg-forest-600 animate-pulse' : 'bg-amber-500'}`} />
-              {isLiveBackendConfigured ? 'Live Supabase Cloud' : 'Local Prototype Mode'}
+            <span className="text-charcoal-600">Auth Engine:</span>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-forest-800">
+              <span className="w-2 h-2 rounded-full bg-forest-600 animate-pulse" />
+              AASHVO API ({apiClient.getBaseUrl()})
             </span>
           </div>
 

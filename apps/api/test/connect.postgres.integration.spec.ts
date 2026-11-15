@@ -638,4 +638,153 @@ describe('Aashvo Connect Domain & Mutual Matching Integration (PostgreSQL 16)', 
       expect(matchesRes.body.length).toBe(0);
     });
   });
+
+  describe('5. Production Contract Aliasing, Route Verification & Unauthenticated / Empty Invariants', () => {
+    it('supports GET /api/v1/connect/candidates contract path for authenticated users', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/connect/candidates?city=Gurugram')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBe(1);
+      expect(res.body[0].userId).toBe(userBId);
+      expect(res.body[0].displayName).toBe('Bhavna');
+    });
+
+    it('returns empty array [] with status 200 when candidate results are empty (never 404)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/connect/candidates?city=NonExistentCity')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBe(0);
+    });
+
+    it('allows unauthenticated requests to preview candidate profiles via GET /api/v1/connect/candidates', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/connect/candidates?city=Gurugram')
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('strictly denies unauthenticated requests to protected match and swipe endpoints with 401', async () => {
+      // 1. Matches requires authentication
+      const matchesRes = await request(app.getHttpServer())
+        .get('/api/v1/connect/matches')
+        .expect(401);
+
+      expect(matchesRes.body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
+
+      // 2. Swipe requires authentication
+      const swipeRes = await request(app.getHttpServer())
+        .post('/api/v1/connect/swipe')
+        .send({ targetUserId: userBId, action: 'like' })
+        .expect(401);
+
+      expect(swipeRes.body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
+
+      // 3. Refresh without token or cookie returns 401
+      const refreshRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({})
+        .expect(401);
+
+      expect(refreshRes.body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
+    });
+
+    it('supports swiping and mutual matching via POST /api/v1/connect/swipe', async () => {
+      // 1. User A likes User B via /swipe
+      const resA = await request(app.getHttpServer())
+        .post('/api/v1/connect/swipe')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ targetUserId: userBId, action: 'like' })
+        .expect(201);
+
+      expect(resA.body.success).toBe(true);
+      expect(resA.body.matched).toBe(false);
+
+      // 2. User B reciprocates via /swipe
+      const resB = await request(app.getHttpServer())
+        .post('/api/v1/connect/swipe')
+        .set('Authorization', `Bearer ${userBToken}`)
+        .send({ targetUserId: userAId, action: 'like' })
+        .expect(201);
+
+      expect(resB.body.success).toBe(true);
+      expect(resB.body.matched).toBe(true);
+      expect(resB.body.match).toBeDefined();
+      expect(resB.body.match.partner.userId).toBe(userAId);
+    });
+
+    it('supports blocking a user by body payload via POST /api/v1/connect/block', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/connect/block')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ targetUserId: userCId, reason: 'Inappropriate conduct' })
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('User blocked successfully.');
+
+      // Verify user block exists in database
+      const block = await prisma.userBlock.findUnique({
+        where: {
+          blockerId_blockedId: { blockerId: userAId, blockedId: userCId },
+        },
+      });
+      expect(block).not.toBeNull();
+    });
+
+    it('supports reporting a user by body payload via POST /api/v1/connect/report', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/connect/report')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          targetUserId: userCId,
+          reason: 'Spam listing',
+          details: 'Advertised fake rent price',
+        })
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Safety report received and queued for staff moderation.');
+
+      // Verify report in database
+      const report = await prisma.safetyReport.findFirst({
+        where: { reporterId: userAId, reportedUserId: userCId },
+      });
+      expect(report).not.toBeNull();
+      expect(report?.reasonCode).toBe('Spam listing');
+    });
+
+    it('issues refreshToken on login and allows rotation via POST /api/v1/auth/refresh body', async () => {
+      // 1. Login User A
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'userA@connect.test',
+          password: 'Str0ngPassword#2026',
+        })
+        .expect(200);
+
+      expect(loginRes.body.accessToken).toBeDefined();
+      expect(loginRes.body.refreshToken).toBeDefined();
+
+      const rawRefreshToken = loginRes.body.refreshToken;
+
+      // 2. Rotate via /auth/refresh with body token
+      const refreshRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: rawRefreshToken })
+        .expect(200);
+
+      expect(refreshRes.body.accessToken).toBeDefined();
+      expect(refreshRes.body.refreshToken).toBeDefined();
+      expect(refreshRes.body.refreshToken).not.toBe(rawRefreshToken);
+    });
+  });
 });

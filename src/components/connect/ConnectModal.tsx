@@ -72,14 +72,20 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
 
   // Load matches
   const loadMatches = useCallback(async () => {
+    if (!currentUser) {
+      setMatches([]);
+      return;
+    }
     setIsLoadingMatches(true);
     try {
       const data = await connectService.getMatches();
       setMatches(data);
+    } catch {
+      setMatches([]);
     } finally {
       setIsLoadingMatches(false);
     }
-  }, []);
+  }, [currentUser]);
 
   // Initial load when modal opens
   useEffect(() => {

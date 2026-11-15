@@ -304,4 +304,76 @@ describe('Real Authentication Repair & Backend Integrity (Phase 2)', () => {
       expect(userStateOnMount).toBeNull();
     });
   });
+
+  describe('7. NestJS Unified Architecture, Single-Flight Refresh & Session Latch', () => {
+    it('manages access token and fallback refresh token in sessionStorage without cross-origin leakage', async () => {
+      const { apiClient } = await import('../services/apiClient');
+      apiClient.setAccessToken('test-access-token-123', 'test-refresh-token-456');
+
+      expect(apiClient.getAccessToken()).toBe('test-access-token-123');
+      expect(apiClient.getRefreshToken()).toBe('test-refresh-token-456');
+      expect(sessionStorage.getItem('aashvo_at')).toBe('test-access-token-123');
+      // Verify refresh token is strictly NOT persisted in Web Storage to eliminate XSS exfiltration
+      expect(sessionStorage.getItem('aashvo_rt')).toBeNull();
+
+      // Clear session
+      apiClient.clearSession();
+      expect(apiClient.getAccessToken()).toBeNull();
+      expect(apiClient.getRefreshToken()).toBeNull();
+      expect(sessionStorage.getItem('aashvo_at')).toBeNull();
+      expect(sessionStorage.getItem('aashvo_rt')).toBeNull();
+    });
+
+    it('single-flights concurrent 401 requests and terminates permanently on failed refresh', async () => {
+      const { apiClient } = await import('../services/apiClient');
+      let refreshCallCount = 0;
+
+      // Mock fetch
+      const originalFetch = global.fetch;
+      global.fetch = async (input: RequestInfo | URL, _init?: RequestInit) => {
+        const urlStr = String(input);
+        if (urlStr.includes('/auth/refresh')) {
+          refreshCallCount++;
+          // Simulate invalid refresh token
+          return new Response(JSON.stringify({ statusCode: 401, error: { code: 'UNAUTHORIZED', message: 'Invalid refresh' } }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (urlStr.includes('/protected-data')) {
+          return new Response(JSON.stringify({ statusCode: 401 }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      };
+
+      try {
+        apiClient.setAccessToken('expired-access-token', 'expired-refresh-token');
+
+        // Fire 3 concurrent requests that return 401
+        const results = await Promise.allSettled([
+          apiClient.request('/protected-data'),
+          apiClient.request('/protected-data'),
+          apiClient.request('/protected-data'),
+        ]);
+
+        // All 3 should be rejected with UNAUTHORIZED
+        results.forEach((r) => {
+          expect(r.status).toBe('rejected');
+        });
+
+        // Exactly ONE single-flight refresh request must have been made
+        expect(refreshCallCount).toBe(1);
+
+        // Session must be cleared and latched
+        expect(apiClient.getAccessToken()).toBeNull();
+
+        // Any subsequent 401 must NOT trigger another refresh
+        await expect(apiClient.request('/protected-data')).rejects.toThrow();
+        expect(refreshCallCount).toBe(1); // Still exactly 1, no loop!
+      } finally {
+        global.fetch = originalFetch;
+        apiClient.clearSession();
+      }
+    });
+  });
 });

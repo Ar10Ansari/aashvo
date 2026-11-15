@@ -39,11 +39,12 @@ export class ApiError extends Error {
 
 class ApiClient {
   private accessToken: string | null = null;
-  private isRefreshing = false;
-  private refreshSubscribers: Array<(token: string | null) => void> = [];
+  private refreshToken: string | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
+  private refreshFailed = false;
 
   constructor() {
-    // Restore access token from session storage if present
+    // Restore access token from session storage if present (refresh token is strictly NOT stored in Web Storage)
     if (typeof window !== 'undefined' && window.sessionStorage) {
       try {
         this.accessToken = window.sessionStorage.getItem('aashvo_at');
@@ -62,8 +63,18 @@ class ApiClient {
     return this.accessToken;
   }
 
-  public setAccessToken(token: string | null): void {
+  public getRefreshToken(): string | null {
+    return this.refreshToken;
+  }
+
+  public setAccessToken(token: string | null, refreshToken?: string | null): void {
     this.accessToken = token;
+    if (refreshToken !== undefined) {
+      this.refreshToken = refreshToken;
+    }
+    if (token) {
+      this.refreshFailed = false; // Reset failure latch on successful login or token renewal
+    }
     if (typeof window !== 'undefined' && window.sessionStorage) {
       try {
         if (token) {
@@ -78,16 +89,58 @@ class ApiClient {
   }
 
   public clearSession(): void {
-    this.setAccessToken(null);
+    this.accessToken = null;
+    this.refreshToken = null;
+    this.refreshPromise = null;
+    this.refreshFailed = true; // Permanent latch: do not repeatedly attempt refresh after session termination
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try {
+        window.sessionStorage.removeItem('aashvo_at');
+      } catch {
+        // Storage restricted
+      }
+    }
   }
 
-  private onRefreshed(token: string | null): void {
-    this.refreshSubscribers.forEach((cb) => cb(token));
-    this.refreshSubscribers = [];
-  }
+  /**
+   * Performs a single-flight token rotation.
+   * If a refresh request is already in flight, all concurrent callers await the same promise.
+   */
+  private async performTokenRefresh(baseUrl: string): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
 
-  private subscribeTokenRefresh(cb: (token: string | null) => void): void {
-    this.refreshSubscribers.push(cb);
+    this.refreshPromise = (async () => {
+      try {
+        const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            refreshToken: this.refreshToken || undefined,
+          }),
+        });
+
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          const newToken = refreshData.accessToken as string;
+          const newRefreshToken = refreshData.refreshToken as string | undefined;
+          this.setAccessToken(newToken, newRefreshToken);
+          return newToken;
+        } else {
+          this.clearSession();
+          return null;
+        }
+      } catch {
+        this.clearSession();
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   public async request<T = unknown>(
@@ -117,69 +170,30 @@ class ApiClient {
     });
 
     // 401 Token Refresh Interceptor (except for auth routes themselves)
+    // Only attempt refresh if the client previously possessed a session!
+    const hasPriorSession = Boolean(this.accessToken || this.refreshToken);
     if (
       response.status === 401 &&
+      hasPriorSession &&
+      !this.refreshFailed &&
       !cleanPath.includes('/auth/login') &&
       !cleanPath.includes('/auth/refresh') &&
       !cleanPath.includes('/auth/register')
     ) {
-      if (!this.isRefreshing) {
-        this.isRefreshing = true;
-        try {
-          const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          });
-
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            const newToken = refreshData.accessToken;
-            this.setAccessToken(newToken);
-            this.isRefreshing = false;
-            this.onRefreshed(newToken);
-
-            // Retry original request with new token
-            headers.set('Authorization', `Bearer ${newToken}`);
-            const retryRes = await fetch(url, {
-              ...options,
-              headers,
-              credentials: 'include',
-            });
-            return this.handleResponse<T>(retryRes);
-          } else {
-            this.clearSession();
-            this.isRefreshing = false;
-            this.onRefreshed(null);
-          }
-        } catch {
-          this.clearSession();
-          this.isRefreshing = false;
-          this.onRefreshed(null);
-        }
+      const newToken = await this.performTokenRefresh(baseUrl);
+      if (newToken) {
+        // Retry original request with new token
+        headers.set('Authorization', `Bearer ${newToken}`);
+        const retryRes = await fetch(url, {
+          ...options,
+          headers,
+          credentials: options.credentials || 'include',
+        });
+        return this.handleResponse<T>(retryRes);
       } else {
-        // Wait for ongoing refresh to complete
-        return new Promise<T>((resolve, reject) => {
-          this.subscribeTokenRefresh(async (token) => {
-            if (token) {
-              headers.set('Authorization', `Bearer ${token}`);
-              try {
-                const retryRes = await fetch(url, {
-                  ...options,
-                  headers,
-                  credentials: 'include',
-                });
-                resolve(await this.handleResponse<T>(retryRes));
-              } catch (err) {
-                reject(err);
-              }
-            } else {
-              reject(new ApiError({
-                statusCode: 401,
-                error: { code: 'UNAUTHORIZED', message: 'Session expired' },
-              }));
-            }
-          });
+        throw new ApiError({
+          statusCode: 401,
+          error: { code: 'UNAUTHORIZED', message: 'Session expired. Please sign in again.' },
         });
       }
     }

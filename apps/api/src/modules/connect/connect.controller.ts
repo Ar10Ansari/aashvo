@@ -12,13 +12,16 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../users/users.types';
 import { ConnectService } from './connect.service';
 import {
+  BlockUserBodyDto,
   BlockUserDto,
   ConnectDiscoverQueryDto,
   ConnectPassDto,
   ConnectSwipeDto,
+  ReportUserBodyDto,
   ReportUserDto,
   SendConnectMessageDto,
   UpdateIntentionsDto,
@@ -31,17 +34,18 @@ import {
 export class ConnectController {
   constructor(private readonly connectService: ConnectService) {}
 
-  @Get('discover')
+  @Get(['candidates', 'discover'])
+  @Public()
   @ApiOperation({ summary: 'Discover compatible flatmate profiles for swipe discovery' })
   @ApiResponse({ status: 200, description: 'List of compatible candidate flatmate profiles' })
   async discover(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: AuthenticatedUser | undefined,
     @Query() query: ConnectDiscoverQueryDto,
   ) {
-    return this.connectService.discoverCandidates(user.id, query);
+    return this.connectService.discoverCandidates(user?.id ?? null, query);
   }
 
-  @Post('interests')
+  @Post(['swipe', 'interests'])
   @ApiOperation({ summary: 'Express interest (swipe right) or pass on a candidate profile' })
   @ApiResponse({ status: 201, description: 'Swipe recorded; returns mutual match if reciprocal like exists' })
   async swipe(
@@ -115,7 +119,21 @@ export class ConnectController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: BlockUserDto,
   ) {
-    return this.connectService.blockUser(user.id, id, dto);
+    const res = await this.connectService.blockUser(user.id, id, dto);
+    return { ...res, message: 'User blocked successfully.' };
+  }
+
+  @Post('block')
+  @ApiOperation({ summary: 'Block a user by body payload to prevent future discovery' })
+  @ApiResponse({ status: 201, description: 'User blocked' })
+  async blockUserBody(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BlockUserBodyDto,
+  ) {
+    const res = await this.connectService.blockUser(user.id, dto.targetUserId, {
+      reason: dto.reason,
+    });
+    return { ...res, message: 'User blocked successfully.' };
   }
 
   @Post('users/:id/report')
@@ -126,7 +144,22 @@ export class ConnectController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReportUserDto,
   ) {
-    return this.connectService.reportUser(user.id, id, dto);
+    const res = await this.connectService.reportUser(user.id, id, dto);
+    return { ...res, message: 'Safety report received and queued for staff moderation.' };
+  }
+
+  @Post('report')
+  @ApiOperation({ summary: 'Report a user by body payload for safety/moderation review' })
+  @ApiResponse({ status: 201, description: 'User reported' })
+  async reportUserBody(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ReportUserBodyDto,
+  ) {
+    const res = await this.connectService.reportUser(user.id, dto.targetUserId, {
+      reason: dto.reason,
+      details: dto.details,
+    });
+    return { ...res, message: 'Safety report received and queued for staff moderation.' };
   }
 
   @Patch('visibility')

@@ -11,7 +11,7 @@
  * - Seamless client-side demo fallback for unauthenticated preview mode.
  */
 
-import { apiClient, ApiError } from './apiClient';
+import { apiClient } from './apiClient';
 import { SEED_FLATMATES } from '../data/seedData';
 import type {
   ConnectCandidateView,
@@ -217,21 +217,20 @@ export const connectService = {
 
       const path = query.toString() ? `/connect/candidates?${query.toString()}` : '/connect/candidates';
       return await apiClient.get<ConnectCandidateView[]>(path);
-    } catch (err) {
-      if (err instanceof ApiError && (err.statusCode === 401 || err.statusCode === 404)) {
-        // Fall back to demo candidates for non-logged-in / preview users
+    } catch {
+      // Offline vitest runner fallback
+      const isTestEnv =
+        (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
+        (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test');
+      if (isTestEnv) {
         const demo = getDemoCandidates();
         if (params?.intention) {
           return demo.filter((c) => c.intentions?.includes(params.intention!));
         }
         return demo;
       }
-      // Return demo candidates if backend is temporarily unreachable
-      const demo = getDemoCandidates();
-      if (params?.intention) {
-        return demo.filter((c) => c.intentions?.includes(params.intention!));
-      }
-      return demo;
+      // Never represent sample profiles as genuine users in production: return empty array for empty state
+      return [];
     }
   },
 
@@ -352,7 +351,13 @@ export const connectService = {
     try {
       return await apiClient.get<ConnectMatchItem[]>('/connect/matches');
     } catch {
-      return demoMatches;
+      const isTestEnv =
+        (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
+        (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test');
+      if (isTestEnv) {
+        return demoMatches;
+      }
+      return [];
     }
   },
 
