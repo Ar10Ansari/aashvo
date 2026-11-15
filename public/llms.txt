@@ -21,6 +21,10 @@ Aashvo is a verified pan-India shared-living and flatmate discovery platform des
 - **Contact Privacy**: Phone numbers remain masked (+91 ***** *XXXX) until an inquiry is accepted.
 - **Tenancy Trust Protection**: Digital tenancy agreement drafting, itemized move-in condition reports, and deposit dispute resolution frameworks.
 
+## Founders & Leadership
+- **Abdul Rehman Ansari**: Co-founder & Chief Technology Officer (CTO)
+- **Tushar Jaisawl**: Co-founder & Head of Marketing
+
 ## Technical & Architectural Overview
 - **Production Website**: https://aashvo.vercel.app
 - **Official Contact**: support@aashvo.com | support@aashvo.in

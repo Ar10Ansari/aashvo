@@ -645,7 +645,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
                         type="text"
                         value={name}
                         onChange={e => setName(e.target.value)}
-                        placeholder="e.g. Rohan Varma"
+                        placeholder="e.g. Priya Sharma"
                         className="w-full px-3.5 py-2 bg-white border border-charcoal-200 rounded-xl text-xs text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600"
                         required
                       />
@@ -659,7 +659,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        placeholder="e.g. rohan.v@delhitech.in"
+                        placeholder="e.g. priya.sharma@example.com"
                         className="w-full px-3.5 py-2 bg-white border border-charcoal-200 rounded-xl text-xs text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600"
                         required
                       />

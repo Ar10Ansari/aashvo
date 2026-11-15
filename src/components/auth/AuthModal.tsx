@@ -19,7 +19,6 @@ import {
   isValidPassword,
   isValidEmail,
 } from '../../services/authService';
-import { apiClient } from '../../services/apiClient';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -337,9 +336,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-forest-700">
                 Aashvo Account
               </span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-300">
-                Cloud API Active
-              </span>
             </div>
             <h2 id="modal-auth-title" className="font-serif text-2xl font-bold text-charcoal-900 mt-0.5">
               {mode === 'signin' && 'Welcome Back'}
@@ -390,15 +386,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
         {/* Content */}
         <div className="p-6">
-          {/* Backend Engine Health Indicator */}
-          <div className="mb-4 px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between border bg-ivory-100/80 border-charcoal-200/50">
-            <span className="text-charcoal-600">Auth Engine:</span>
-            <span className="inline-flex items-center gap-1.5 font-semibold text-forest-800">
-              <span className="w-2 h-2 rounded-full bg-forest-600 animate-pulse" />
-              AASHVO API ({apiClient.getBaseUrl()})
-            </span>
-          </div>
-
           {/* Alerts */}
           {errorMessage && (
             <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex flex-col space-y-2">
@@ -439,7 +426,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="e.g. rohan@example.com"
+                    placeholder="e.g. yourname@example.com"
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-ivory-50 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
                   />
@@ -644,7 +631,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="e.g. rohan@example.com"
+                    placeholder="e.g. yourname@example.com"
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-ivory-50 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
                   />

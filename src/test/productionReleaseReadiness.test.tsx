@@ -62,7 +62,7 @@ describe('Production Release Readiness & Demo Removal Gate', () => {
         </AppProvider>,
       );
 
-      const emailInput = screen.getByPlaceholderText(/rohan@example\.com/i) as HTMLInputElement;
+      const emailInput = screen.getByPlaceholderText(/yourname@example\.com/i) as HTMLInputElement;
       const passwordInput = screen.getByPlaceholderText(/enter your password/i) as HTMLInputElement;
 
       expect(emailInput.value).toBe('');

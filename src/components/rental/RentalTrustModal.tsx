@@ -365,13 +365,13 @@ export const RentalTrustModal: React.FC<RentalTrustModalProps> = ({
           <div className="mx-6 mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h4 className="font-bold">Backend Connection Notice</h4>
+              <h4 className="font-bold">Unable to Load Rental Trust Records</h4>
               <p className="text-xs text-rose-700 mt-0.5">{loadError}</p>
               <button
                 onClick={loadAgreements}
                 className="mt-2 text-xs font-semibold px-3 py-1 bg-rose-100 hover:bg-rose-200 rounded-lg transition-colors text-rose-900"
               >
-                Retry Connection
+                Retry
               </button>
             </div>
           </div>

@@ -34,7 +34,7 @@ export const NotificationCenter: React.FC = () => {
       const res = await notificationService.getUnreadCount();
       setUnreadCount(res.unreadCount || 0);
     } catch {
-      // In demo or offline mode, preserve local count
+      // In offline mode, preserve local count
     }
   };
 

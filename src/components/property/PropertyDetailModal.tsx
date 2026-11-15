@@ -430,7 +430,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
                       type="text"
                       value={senderName}
                       onChange={e => setSenderName(e.target.value)}
-                      placeholder="e.g. Rohan Varma"
+                      placeholder="e.g. Priya Sharma"
                       className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-forest-600"
                       required
                     />

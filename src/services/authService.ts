@@ -544,7 +544,7 @@ export function sanitizeUserUpdateRequest(
 // ====================================================================
 
 export const BACKEND_NOT_CONFIGURED_ERROR =
-  'Supabase authentication backend is not configured in this environment (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY). Please configure environment variables or use Demo Personas.';
+  'Authentication backend is not configured in this environment (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY). Please configure environment variables.';
 
 /**
  * Ensures a matching profile row exists in public.profiles for an authenticated user.

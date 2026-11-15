@@ -307,7 +307,7 @@ export const DiscoverySection: React.FC = () => {
           <div className="flex items-start space-x-2.5">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <div>
-              <strong className="block font-semibold">Unable to load live marketplace inventory</strong>
+              <strong className="block font-semibold">Unable to load listings right now</strong>
               <span className="text-rose-700">{dataLoadError}</span>
             </div>
           </div>
@@ -316,7 +316,7 @@ export const DiscoverySection: React.FC = () => {
             onClick={retryDataLoad}
             className="px-4 py-2 bg-rose-900 text-white rounded-xl font-semibold hover:bg-rose-800 transition-colors self-start sm:self-center shrink-0"
           >
-            Retry Connection
+            Retry
           </button>
         </div>
       )}
@@ -326,7 +326,7 @@ export const DiscoverySection: React.FC = () => {
         <div className="bg-white rounded-3xl p-12 text-center border border-charcoal-200/60 max-w-lg mx-auto">
           <Loader2 className="w-8 h-8 text-forest-700 animate-spin mx-auto mb-3" />
           <h3 className="font-serif text-lg font-bold text-charcoal-800">Loading verified inventory...</h3>
-          <p className="text-xs text-charcoal-500 mt-1">Connecting to Aashvo marketplace database.</p>
+          <p className="text-xs text-charcoal-500 mt-1">Fetching verified listings across India.</p>
         </div>
       ) : activeTab === 'flatmates' ? (
         filteredFlatmates.length > 0 ? (
