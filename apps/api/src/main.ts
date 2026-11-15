@@ -8,7 +8,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const { port, swaggerEnabled } = configureApp(app);
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   const logger = new Logger('Bootstrap');
   logger.log(
     `Aashvo API listening on port ${port} (swagger: ${swaggerEnabled ? '/api/docs' : 'disabled'})`,

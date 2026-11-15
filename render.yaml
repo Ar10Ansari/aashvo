@@ -1,0 +1,54 @@
+services:
+  - type: web
+    name: aashvo-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
+    startCommand: npm --workspace=apps/api run start
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: info
+      - key: ENABLE_SWAGGER
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SIGNING_PRIVATE_KEY
+        sync: false
+      - key: JWT_SIGNING_PUBLIC_KEY
+        sync: false
+      - key: JWT_ISSUER
+        value: https://api.aashvo.in
+      - key: JWT_AUDIENCE
+        value: aashvo-clients
+      - key: JWT_ACCESS_TTL_SECONDS
+        value: 900
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: 30
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: WEB_APP_URL
+        value: https://aashvo.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://aashvo.vercel.app
+      - key: TRUST_PROXY
+        value: "1"
+      - key: THROTTLE_TTL_MS
+        value: 60000
+      - key: THROTTLE_LIMIT
+        value: 120
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: LOCAL_STORAGE_BASE_DIR
+        value: ./scratch/storage
+      - key: LOCAL_STORAGE_PUBLIC_BASE_URL
+        value: https://aashvo-api.onrender.com/assets
+

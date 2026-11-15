@@ -103,6 +103,14 @@ const rawEnvSchema = z
         (val) => val.startsWith('postgresql://') || val.startsWith('postgres://'),
         'must use postgresql:// or postgres:// scheme',
       ),
+    DIRECT_URL: z
+      .string()
+      .trim()
+      .optional()
+      .refine(
+        (val) => val === undefined || val.startsWith('postgresql://') || val.startsWith('postgres://'),
+        'must use postgresql:// or postgres:// scheme',
+      ),
     JWT_SIGNING_PRIVATE_KEY: z
       .string()
       .trim()
@@ -148,6 +156,14 @@ const rawEnvSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['DATABASE_URL'],
+        message: 'placeholder database credentials are forbidden in staging/production',
+      });
+    }
+
+    if (cfg.DIRECT_URL && PLACEHOLDER_MARKER.test(cfg.DIRECT_URL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DIRECT_URL'],
         message: 'placeholder database credentials are forbidden in staging/production',
       });
     }

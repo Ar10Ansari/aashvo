@@ -14,6 +14,7 @@ function ensureScriptEnvDefaults(): void {
 
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ??= 'postgresql://postgres:local-only@127.0.0.1:5433/aashvo_dev';
+  process.env.DIRECT_URL ??= process.env.DATABASE_URL;
   process.env.JWT_SIGNING_PRIVATE_KEY ??= keys.privateKey;
   process.env.JWT_SIGNING_PUBLIC_KEY ??= keys.publicKey;
   process.env.CORS_ALLOWED_ORIGINS ??= 'http://localhost:5173';

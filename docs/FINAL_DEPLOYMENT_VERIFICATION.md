@@ -79,3 +79,4 @@ Prior to routing production traffic to the live independent NestJS API:
 4. **Cloud Storage Setup:** Provision Cloudflare R2 bucket (`aashvo-public-assets`) and AWS S3 Mumbai private vault (`aashvo-private-vault`).
 5. **DNS & SSL:** Point `api.aashvo.in` to the compute ingress IP.
 6. **Vercel Environment Variable:** Add `VITE_API_BASE_URL=https://api.aashvo.in/api/v1` in Vercel Project Settings.
+

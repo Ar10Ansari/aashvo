@@ -99,6 +99,10 @@ Thumbs.db
 supabase/.branches/
 supabase/.temp/
 supabase/*.backup*
+supabase/backups/
+*.dump
+
 
 # Editor and agent configurations
 opencode.jsonc
+.neon
