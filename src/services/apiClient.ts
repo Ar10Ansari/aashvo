@@ -267,6 +267,14 @@ class ApiClient {
     });
   }
 
+  public put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+    return this.request<T>(path, {
+      ...options,
+      method: 'PUT',
+      body: data instanceof FormData ? data : JSON.stringify(data),
+    });
+  }
+
   public patch<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     return this.request<T>(path, {
       ...options,

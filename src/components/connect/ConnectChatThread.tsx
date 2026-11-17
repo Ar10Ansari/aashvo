@@ -11,6 +11,7 @@ import {
   CheckCheck,
   User,
   Info,
+  UserX,
 } from 'lucide-react';
 
 interface ConnectChatThreadProps {
@@ -21,6 +22,7 @@ interface ConnectChatThreadProps {
   onBack: () => void;
   onBlockUser: (targetUserId: string, reason?: string) => Promise<void>;
   onReportUser: (targetUserId: string, reason: string, details?: string) => Promise<void>;
+  onUnmatch?: (matchId: string, reason?: string) => Promise<void>;
 }
 
 export const ConnectChatThread: React.FC<ConnectChatThreadProps> = ({
@@ -31,10 +33,12 @@ export const ConnectChatThread: React.FC<ConnectChatThreadProps> = ({
   onBack,
   onBlockUser,
   onReportUser,
+  onUnmatch,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportReason, setReportReason] = useState('Inappropriate communication');
@@ -67,6 +71,18 @@ export const ConnectChatThread: React.FC<ConnectChatThreadProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleConfirmUnmatch = async () => {
+    if (!onUnmatch) return;
+    setIsActionSubmitting(true);
+    try {
+      await onUnmatch(match.id, 'Unmatched by user');
+      setShowUnmatchConfirm(false);
+      onBack();
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -155,6 +171,18 @@ export const ConnectChatThread: React.FC<ConnectChatThreadProps> = ({
 
           {menuOpen && (
             <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-charcoal-100 py-1.5 z-20 animate-in fade-in zoom-in-95 duration-100">
+              {onUnmatch && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setShowUnmatchConfirm(true);
+                  }}
+                  className="w-full text-left px-3.5 py-2 text-xs text-charcoal-700 hover:bg-ivory-100 flex items-center space-x-2"
+                >
+                  <UserX className="w-4 h-4 text-charcoal-500" />
+                  <span>Unmatch</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setMenuOpen(false);
@@ -265,6 +293,39 @@ export const ConnectChatThread: React.FC<ConnectChatThreadProps> = ({
           <Send className="w-4 h-4" />
         </button>
       </form>
+
+      {/* Unmatch Confirmation Modal */}
+      {showUnmatchConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl border border-charcoal-200 text-center animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-full bg-sand-100 text-forest-700 flex items-center justify-center mx-auto mb-3">
+              <UserX className="w-6 h-6" />
+            </div>
+            <h4 className="font-serif text-lg font-bold text-charcoal-900 mb-1">
+              Unmatch with {partner.displayName}?
+            </h4>
+            <p className="text-xs text-charcoal-600 mb-5 leading-relaxed">
+              This will remove the match and archive your conversation. You can always discover new verified flatmates on Connect.
+            </p>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setShowUnmatchConfirm(false)}
+                disabled={isActionSubmitting}
+                className="flex-1 py-2 text-xs font-semibold rounded-full border border-charcoal-300 text-charcoal-700 hover:bg-ivory-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmUnmatch}
+                disabled={isActionSubmitting}
+                className="flex-1 py-2 text-xs font-semibold rounded-full bg-forest-700 text-white hover:bg-forest-800 shadow-sm"
+              >
+                {isActionSubmitting ? 'Unmatching...' : 'Unmatch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Safety Modal: Block User */}
       {showBlockConfirm && (

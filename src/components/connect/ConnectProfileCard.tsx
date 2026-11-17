@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Home,
   User,
+  Calendar,
+  ThumbsUp,
 } from 'lucide-react';
 
 interface ConnectProfileCardProps {
@@ -61,7 +63,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
       )}
 
       {/* Top Media / Avatar Section (50% height) */}
-      <div className="relative h-[280px] sm:h-[300px] w-full bg-charcoal-100 overflow-hidden flex-shrink-0">
+      <div className="relative h-[270px] sm:h-[290px] w-full bg-charcoal-100 overflow-hidden flex-shrink-0">
         {candidate.avatarUrl ? (
           <img
             src={candidate.avatarUrl}
@@ -73,7 +75,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
             <User className="w-24 h-24 stroke-1 opacity-50" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/80 via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/85 via-transparent to-black/20" />
 
         {/* Flatmate Intentions Badges */}
         <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-1.5 max-w-[220px]">
@@ -118,7 +120,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
                     key="team_up"
                     className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold backdrop-blur-md shadow-sm bg-teal-800/90 text-white border border-teal-500/40"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Home className="w-3 h-3" />
                     <span>Rent Together</span>
                   </span>
                 );
@@ -163,7 +165,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
             <MapPin className="w-3.5 h-3.5 text-sand-300" />
             <span>
               {candidate.targetLocalities && candidate.targetLocalities.length > 0
-                ? candidate.targetLocalities.slice(0, 2).join(', ')
+                ? `${candidate.targetLocalities.slice(0, 2).join(', ')} • ${candidate.city}`
                 : candidate.city}
             </span>
           </div>
@@ -171,28 +173,53 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
       </div>
 
       {/* Bottom Content Section (Scrollable on small screens) */}
-      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-3.5 text-charcoal-700">
-        {/* Budget & Room info banner */}
-        <div className="flex items-center justify-between bg-ivory-100/90 p-2.5 rounded-xl border border-charcoal-100">
-          <div className="text-xs">
-            <span className="text-charcoal-500 font-medium">Budget: </span>
+      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-3 text-charcoal-700">
+        {/* Budget & Move-in timeline pills */}
+        <div className="grid grid-cols-2 gap-2 bg-ivory-100/90 p-2.5 rounded-xl border border-charcoal-100 text-xs">
+          <div>
+            <span className="text-charcoal-500 font-medium block text-[10px]">Max Monthly Budget</span>
             <span className="font-bold text-forest-800">
-              Up to ₹{candidate.budgetMax.toLocaleString('en-IN')}/mo
+              ₹{candidate.budgetMax.toLocaleString('en-IN')}/mo
             </span>
           </div>
-          {candidate.roomDetails && (
-            <div className="text-[11px] text-charcoal-600 truncate max-w-[170px]" title={candidate.roomDetails}>
-              {candidate.roomDetails}
-            </div>
-          )}
+          <div>
+            <span className="text-charcoal-500 font-medium block text-[10px] flex items-center space-x-1">
+              <Calendar className="w-3 h-3 text-charcoal-400" />
+              <span>Target Move-in</span>
+            </span>
+            <span className="font-bold text-charcoal-800 truncate block">
+              {candidate.moveInDate ? candidate.moveInDate : (candidate.moveInFlexible ? 'Flexible Timing' : 'Immediate')}
+            </span>
+          </div>
         </div>
 
-        {/* 5-Dimension Compatibility Pill Summary */}
-        <div className="bg-forest-50/70 border border-forest-100 rounded-2xl p-3">
-          <div className="flex items-center justify-between text-xs font-semibold text-forest-900 mb-2">
+        {/* Match Explanations ("Why You Match") */}
+        {compatibility.explanations && compatibility.explanations.length > 0 && (
+          <div className="bg-forest-50/70 border border-forest-100 rounded-2xl p-2.5">
+            <div className="flex items-center space-x-1.5 text-xs font-bold text-forest-900 mb-1.5">
+              <ThumbsUp className="w-3.5 h-3.5 text-forest-600" />
+              <span>Why You Match</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {compatibility.explanations.map((expl, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center space-x-1 bg-white px-2 py-0.5 rounded-md text-[11px] font-medium text-forest-800 border border-forest-200/60 shadow-xs"
+                >
+                  <CheckCircle2 className="w-3 h-3 text-forest-600 flex-shrink-0" />
+                  <span>{expl}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 7-Dimension Compatibility Pill Summary */}
+        <div className="bg-ivory-100/70 border border-charcoal-100 rounded-2xl p-3">
+          <div className="flex items-center justify-between text-xs font-semibold text-charcoal-900 mb-2">
             <span className="flex items-center space-x-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-forest-600" />
-              <span>Lifestyle Compatibility</span>
+              <span>Compatibility Breakdown</span>
             </span>
             <button
               onClick={() => setShowFullBreakdown(!showFullBreakdown)}
@@ -205,7 +232,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
 
           {/* Quick Lifestyle Badges */}
           <div className="grid grid-cols-3 gap-1.5 text-center">
-            <div className="bg-white/80 rounded-lg p-1.5 border border-forest-100/60">
+            <div className="bg-white/80 rounded-lg p-1.5 border border-charcoal-200/50">
               <Utensils className="w-3.5 h-3.5 mx-auto text-forest-600 mb-0.5" />
               <div className="text-[10px] text-charcoal-500 font-medium">Food</div>
               <div className="text-[11px] font-bold text-charcoal-800 truncate">
@@ -213,7 +240,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
               </div>
             </div>
 
-            <div className="bg-white/80 rounded-lg p-1.5 border border-forest-100/60">
+            <div className="bg-white/80 rounded-lg p-1.5 border border-charcoal-200/50">
               <Moon className="w-3.5 h-3.5 mx-auto text-forest-600 mb-0.5" />
               <div className="text-[10px] text-charcoal-500 font-medium">Sleep</div>
               <div className="text-[11px] font-bold text-charcoal-800 truncate">
@@ -221,7 +248,7 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
               </div>
             </div>
 
-            <div className="bg-white/80 rounded-lg p-1.5 border border-forest-100/60">
+            <div className="bg-white/80 rounded-lg p-1.5 border border-charcoal-200/50">
               <Sparkles className="w-3.5 h-3.5 mx-auto text-forest-600 mb-0.5" />
               <div className="text-[10px] text-charcoal-500 font-medium">Cleanliness</div>
               <div className="text-[11px] font-bold text-charcoal-800 truncate">
@@ -230,61 +257,90 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
             </div>
           </div>
 
-          {/* Expanded 5-Dimension Breakdown Accordion */}
+          {/* Expanded 7-Dimension Breakdown Accordion */}
           {showFullBreakdown && (
-            <div className="mt-3 pt-2.5 border-t border-forest-100/80 space-y-2 text-xs">
+            <div className="mt-3 pt-2.5 border-t border-charcoal-200/70 space-y-2 text-xs">
+              {/* Location */}
               <div className="flex items-center justify-between text-charcoal-600">
-                <span>Food Habits (25% weight)</span>
-                <span className="font-bold text-forest-800">{compatibility.foodScore} / 25 pts</span>
+                <span>Location & Locality</span>
+                <span className="font-bold text-forest-800">{compatibility.locationScore ?? 18} / 20 pts</span>
               </div>
-              <div className="w-full bg-forest-200/50 rounded-full h-1.5">
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
                 <div
                   className="bg-forest-600 h-1.5 rounded-full"
-                  style={{ width: `${Math.round((compatibility.foodScore / 25) * 100)}%` }}
+                  style={{ width: `${Math.round(((compatibility.locationScore ?? 18) / 20) * 100)}%` }}
                 />
               </div>
 
+              {/* Budget */}
               <div className="flex items-center justify-between text-charcoal-600">
-                <span>Sleep Schedule (20% weight)</span>
-                <span className="font-bold text-forest-800">{compatibility.sleepScore} / 20 pts</span>
-              </div>
-              <div className="w-full bg-forest-200/50 rounded-full h-1.5">
-                <div
-                  className="bg-forest-600 h-1.5 rounded-full"
-                  style={{ width: `${Math.round((compatibility.sleepScore / 20) * 100)}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-charcoal-600">
-                <span>Cleanliness Standards (20% weight)</span>
-                <span className="font-bold text-forest-800">{compatibility.cleanlinessScore} / 20 pts</span>
-              </div>
-              <div className="w-full bg-forest-200/50 rounded-full h-1.5">
-                <div
-                  className="bg-forest-600 h-1.5 rounded-full"
-                  style={{ width: `${Math.round((compatibility.cleanlinessScore / 20) * 100)}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-charcoal-600">
-                <span>Budget Alignment (20% weight)</span>
+                <span>Budget Alignment</span>
                 <span className="font-bold text-forest-800">{compatibility.budgetScore} / 20 pts</span>
               </div>
-              <div className="w-full bg-forest-200/50 rounded-full h-1.5">
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
                 <div
                   className="bg-forest-600 h-1.5 rounded-full"
                   style={{ width: `${Math.round((compatibility.budgetScore / 20) * 100)}%` }}
                 />
               </div>
 
+              {/* Lifestyle & Cleanliness */}
               <div className="flex items-center justify-between text-charcoal-600">
-                <span>Mutual Interests (15% weight)</span>
-                <span className="font-bold text-forest-800">{compatibility.interestsScore} / 15 pts</span>
+                <span>Lifestyle & Cleanliness</span>
+                <span className="font-bold text-forest-800">{compatibility.lifestyleScore ?? compatibility.cleanlinessScore} / 20 pts</span>
               </div>
-              <div className="w-full bg-forest-200/50 rounded-full h-1.5">
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
                 <div
                   className="bg-forest-600 h-1.5 rounded-full"
-                  style={{ width: `${Math.round((compatibility.interestsScore / 15) * 100)}%` }}
+                  style={{ width: `${Math.round(((compatibility.lifestyleScore ?? compatibility.cleanlinessScore) / 20) * 100)}%` }}
+                />
+              </div>
+
+              {/* Food Habits */}
+              <div className="flex items-center justify-between text-charcoal-600">
+                <span>Food Habits</span>
+                <span className="font-bold text-forest-800">{compatibility.foodScore} / 15 pts</span>
+              </div>
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
+                <div
+                  className="bg-forest-600 h-1.5 rounded-full"
+                  style={{ width: `${Math.round((compatibility.foodScore / 15) * 100)}%` }}
+                />
+              </div>
+
+              {/* Sleep Routine */}
+              <div className="flex items-center justify-between text-charcoal-600">
+                <span>Sleep Schedule</span>
+                <span className="font-bold text-forest-800">{compatibility.sleepScore} / 10 pts</span>
+              </div>
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
+                <div
+                  className="bg-forest-600 h-1.5 rounded-full"
+                  style={{ width: `${Math.round((compatibility.sleepScore / 10) * 100)}%` }}
+                />
+              </div>
+
+              {/* Move-in Date */}
+              <div className="flex items-center justify-between text-charcoal-600">
+                <span>Move-in Timeline</span>
+                <span className="font-bold text-forest-800">{compatibility.moveInScore ?? 10} / 10 pts</span>
+              </div>
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
+                <div
+                  className="bg-forest-600 h-1.5 rounded-full"
+                  style={{ width: `${Math.round(((compatibility.moveInScore ?? 10) / 10) * 100)}%` }}
+                />
+              </div>
+
+              {/* Mutual Interests */}
+              <div className="flex items-center justify-between text-charcoal-600">
+                <span>Shared Interests</span>
+                <span className="font-bold text-forest-800">{compatibility.interestsScore} / 5 pts</span>
+              </div>
+              <div className="w-full bg-charcoal-200/60 rounded-full h-1.5">
+                <div
+                  className="bg-forest-600 h-1.5 rounded-full"
+                  style={{ width: `${Math.round((compatibility.interestsScore / 5) * 100)}%` }}
                 />
               </div>
 

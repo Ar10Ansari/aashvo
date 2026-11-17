@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import type { FlatmateIntention } from '@aashvo/contracts';
+import React, { useState, useEffect } from 'react';
+import type { FlatmateIntention, MatchingWeightsConfig } from '@aashvo/contracts';
+import { DEFAULT_MATCHING_WEIGHTS } from '@aashvo/contracts';
 import { connectService } from '../../services/connectService';
 import {
   Eye,
@@ -13,6 +14,16 @@ import {
   Search,
   CheckSquare,
   Square,
+  Sliders,
+  RotateCcw,
+  Sparkles,
+  MapPin,
+  DollarSign,
+  Utensils,
+  Moon,
+  Sparkle,
+  Calendar,
+  Heart,
 } from 'lucide-react';
 
 interface ConnectProfileSettingsProps {
@@ -40,6 +51,69 @@ export const ConnectProfileSettings: React.FC<ConnectProfileSettingsProps> = ({
   const [selectedIntentions, setSelectedIntentions] = useState<FlatmateIntention[]>(initialIntentions);
   const [isUpdatingIntentions, setIsUpdatingIntentions] = useState(false);
   const [intentionsMsg, setIntentionsMsg] = useState('');
+
+  // Matching Weights Preferences State
+  const [weights, setWeights] = useState<MatchingWeightsConfig>(DEFAULT_MATCHING_WEIGHTS);
+  const [isLoadingWeights, setIsLoadingWeights] = useState(false);
+  const [isSavingWeights, setIsSavingWeights] = useState(false);
+  const [weightsMsg, setWeightsMsg] = useState('');
+
+  // Load User Matching Preferences
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPrefs = async () => {
+      if (!currentUser) return;
+      setIsLoadingWeights(true);
+      try {
+        const prefs = await connectService.getMatchingPreferences();
+        if (isMounted && prefs?.weights) {
+          setWeights(prefs.weights);
+        }
+      } catch {
+        // Fall back to default
+      } finally {
+        if (isMounted) setIsLoadingWeights(false);
+      }
+    };
+    fetchPrefs();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  const handleWeightChange = (dimension: keyof MatchingWeightsConfig, value: number) => {
+    setWeights((prev) => ({
+      ...prev,
+      [dimension]: value,
+    }));
+  };
+
+  const handleResetWeights = () => {
+    setWeights(DEFAULT_MATCHING_WEIGHTS);
+    setWeightsMsg('Reset to default algorithm weights.');
+    setTimeout(() => setWeightsMsg(''), 3000);
+  };
+
+  const handleSaveWeights = async () => {
+    setIsSavingWeights(true);
+    try {
+      const res = await connectService.updateMatchingPreferences(weights);
+      setWeights(res.weights);
+      setWeightsMsg('Matching preference weights saved successfully!');
+      setTimeout(() => setWeightsMsg(''), 4000);
+    } catch {
+      setWeightsMsg('Failed to save preferences. Please try again.');
+      setTimeout(() => setWeightsMsg(''), 4000);
+    } finally {
+      setIsSavingWeights(false);
+    }
+  };
+
+  const totalRawWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+  const getNormalizedPercent = (val: number) => {
+    if (totalRawWeight === 0) return 0;
+    return Math.round((val / totalRawWeight) * 100);
+  };
 
   const handleToggle = async (newVal: boolean) => {
     setIsUpdating(true);
@@ -203,6 +277,106 @@ export const ConnectProfileSettings: React.FC<ConnectProfileSettingsProps> = ({
           <div className="p-2.5 rounded-xl bg-forest-50 border border-forest-200 flex items-center space-x-2 text-xs text-forest-800 font-semibold">
             <Check className="w-4 h-4 text-forest-600" />
             <span>{intentionsMsg}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Personalized Matching Dimension Weights */}
+      <div className="bg-white rounded-3xl p-6 border border-charcoal-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-full bg-forest-50 text-forest-700 flex items-center justify-center">
+              <Sliders className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h4 className="font-serif text-lg font-bold text-charcoal-900">
+                  Personalized Matching Weights
+                </h4>
+                {isLoadingWeights && (
+                  <span className="text-[10px] text-charcoal-400 animate-pulse">Loading...</span>
+                )}
+              </div>
+              <p className="text-xs text-charcoal-500">
+                Adjust how much each lifestyle and logistics dimension influences your compatibility score.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleResetWeights}
+            className="flex items-center space-x-1 text-xs font-semibold text-charcoal-500 hover:text-charcoal-800 p-1.5 rounded-lg hover:bg-ivory-100 transition-colors"
+            title="Reset to algorithm defaults"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Reset</span>
+          </button>
+        </div>
+
+        {/* Dimension Sliders */}
+        <div className="space-y-3 pt-1">
+          {[
+            { key: 'budget', label: 'Budget Alignment', icon: DollarSign, desc: 'Overlap in target rent and utility budget' },
+            { key: 'location', label: 'Location & Locality', icon: MapPin, desc: 'Locality, city and commute proximity' },
+            { key: 'lifestyle', label: 'Cleanliness & Chores', icon: Sparkle, desc: 'Cleanliness standards, guest rules & chores' },
+            { key: 'food', label: 'Food Habits & Diet', icon: Utensils, desc: 'Vegetarian, vegan, non-veg compatibility' },
+            { key: 'sleep', label: 'Sleep & Daily Routine', icon: Moon, desc: 'Early riser vs night owl sync' },
+            { key: 'moveIn', label: 'Move-in Timeline', icon: Calendar, desc: 'Target move-in date proximity & flexibility' },
+            { key: 'interests', label: 'Interests & Vibe', icon: Heart, desc: 'Shared hobbies, passions & mutual traits' },
+          ].map(({ key, label, icon: Icon, desc }) => {
+            const dimKey = key as keyof MatchingWeightsConfig;
+            const rawVal = weights[dimKey] ?? 0;
+            const normPct = getNormalizedPercent(rawVal);
+
+            return (
+              <div key={key} className="p-3 bg-ivory-100/70 rounded-2xl border border-charcoal-100">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center space-x-2">
+                    <Icon className="w-4 h-4 text-forest-700" />
+                    <span className="text-xs font-bold text-charcoal-900">{label}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[11px] text-charcoal-500 font-medium">Raw: {rawVal}</span>
+                    <span className="text-xs font-extrabold text-forest-800 bg-forest-100/80 px-2 py-0.5 rounded-full border border-forest-200">
+                      {normPct}%
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-charcoal-500 mb-2">{desc}</p>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={rawVal}
+                  onChange={(e) => handleWeightChange(dimKey, parseInt(e.target.value, 10) || 0)}
+                  className="w-full h-1.5 bg-charcoal-200 rounded-lg appearance-none cursor-pointer accent-forest-700"
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Save button and feedback */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-[11px] text-charcoal-500">
+            Total relative weighting automatically normalizes to 100%.
+          </div>
+          <button
+            type="button"
+            onClick={handleSaveWeights}
+            disabled={isSavingWeights}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-forest-700 text-white text-xs font-bold hover:bg-forest-800 transition-all flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sand-400" />
+            <span>{isSavingWeights ? 'Saving...' : 'Save Matching Weights'}</span>
+          </button>
+        </div>
+
+        {weightsMsg && (
+          <div className="p-2.5 rounded-xl bg-forest-50 border border-forest-200 flex items-center space-x-2 text-xs text-forest-800 font-semibold">
+            <Check className="w-4 h-4 text-forest-600" />
+            <span>{weightsMsg}</span>
           </div>
         )}
       </div>

@@ -343,6 +343,24 @@ enum NotificationCategory {
   @@map("notification_category")
 }
 
+enum MarketplaceProfileType {
+  flatmate_seeker
+  property_owner
+  family_stay_host
+  family_stay_seeker
+
+  @@map("marketplace_profile_type")
+}
+
+enum MarketplaceProfileStatus {
+  draft
+  active
+  paused
+
+  @@map("marketplace_profile_status")
+}
+
+
 // ==================== IDENTITY, AUTH & SESSIONS ====================
 
 model User {
@@ -427,6 +445,8 @@ model Profile {
   verificationsSubmitted    PropertyVerification[] @relation("VerificationSubmitter")
   verificationsReviewed     PropertyVerification[] @relation("VerificationReviewer")
   notifications             UserNotification[]   @relation("UserNotifications")
+  marketplaceProfiles       MarketplaceProfile[]
+  matchingPreference        UserMatchingPreference?
 
   @@index([phoneNumber])
   @@map("profiles")
@@ -589,20 +609,34 @@ model FlatmateProfile {
   hasRoom          Boolean          @default(false) @map("has_room")
   intentions       FlatmateIntention[] @default([]) @map("intentions")
   roomDetails      String?          @map("room_details")
-  targetLocalities String[]         @default([]) @map("target_localities")
-  city             String           @default("Gurugram") @db.VarChar(80)
-  budgetMax        Decimal          @map("budget_max") @db.Decimal(10, 2)
-  foodHabit        FoodHabit        @map("food_habit")
-  sleepRoutine     SleepRoutine     @map("sleep_routine")
-  cleanliness      CleanlinessLevel
-  petFriendly      Boolean          @default(false) @map("pet_friendly")
-  smoking          String           @db.VarChar(64)
-  bio              String
-  interests        String[]         @default([])
-  verified         Boolean          @default(false)
-  discoveryHidden  Boolean          @default(false) @map("discovery_hidden")
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  targetLocalities   String[]            @default([]) @map("target_localities")
+  city               String              @default("Gurugram") @db.VarChar(80)
+  state              String?             @default("Haryana") @db.VarChar(80)
+  country            String?             @default("India") @db.VarChar(80)
+  budgetMin          Decimal?            @default(0) @map("budget_min") @db.Decimal(10, 2)
+  budgetMax          Decimal             @map("budget_max") @db.Decimal(10, 2)
+  moveInDate         String?             @map("move_in_date") @db.VarChar(60)
+  moveInFlexible     Boolean             @default(true) @map("move_in_flexible")
+  roomType           RoomType?           @map("room_type")
+  furnishing         FurnishingStatus?   @map("furnishing")
+  foodHabit          FoodHabit           @map("food_habit")
+  sleepRoutine       SleepRoutine        @map("sleep_routine")
+  cleanliness        CleanlinessLevel
+  drinking           String?             @default("Prefer not to say") @db.VarChar(64)
+  languages          String[]            @default([])
+  collegeOrWorkplace String?             @map("college_or_workplace") @db.VarChar(160)
+  socialLifestyle    String?             @map("social_lifestyle") @db.VarChar(64)
+  wfhHabits          String?             @map("wfh_habits") @db.VarChar(64)
+  noiseTolerance     String?             @map("noise_tolerance") @db.VarChar(64)
+  petFriendly        Boolean             @default(false) @map("pet_friendly")
+  smoking            String              @db.VarChar(64)
+  bio                String
+  interests          String[]            @default([])
+  verified           Boolean             @default(false)
+  isPublished        Boolean             @default(true) @map("is_published")
+  discoveryHidden    Boolean             @default(false) @map("discovery_hidden")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   profile          Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
   interestRequests InterestRequest[]
@@ -1133,6 +1167,46 @@ model UserNotification {
   @@index([userId, read, createdAt(sort: Desc)])
   @@map("user_notifications")
 }
+
+// 5. Multi-Persona Marketplace Profiles
+model MarketplaceProfile {
+  id                String                   @id @default(uuid()) @db.Uuid
+  userId            String                   @map("user_id") @db.Uuid
+  profileType       MarketplaceProfileType   @map("profile_type")
+  status            MarketplaceProfileStatus @default(draft) @map("status")
+  isCurrentActive   Boolean                  @default(false) @map("is_current_active")
+  displayName       String?                  @map("display_name") @db.VarChar(120)
+  completionPercent Int                      @default(0) @map("completion_percent")
+  metadata          Json                     @default("{}")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, profileType])
+  @@index([userId, isCurrentActive])
+  @@map("marketplace_profiles")
+}
+
+// 6. User Matching Preferences (Connect Intelligence)
+model UserMatchingPreference {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  budgetWeight    Int      @default(20) @map("budget_weight")
+  locationWeight  Int      @default(20) @map("location_weight")
+  lifestyleWeight Int      @default(20) @map("lifestyle_weight")
+  foodWeight      Int      @default(15) @map("food_weight")
+  sleepWeight     Int      @default(10) @map("sleep_weight")
+  moveInWeight    Int      @default(10) @map("move_in_weight")
+  interestsWeight Int      @default(5)  @map("interests_weight")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_matching_preferences")
+}
+
 
 
 

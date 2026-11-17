@@ -13,14 +13,19 @@
 
 import { apiClient } from './apiClient';
 import { SEED_FLATMATES } from '../data/seedData';
-import type {
-  ConnectCandidateView,
-  ConnectSwipeResponse,
-  ConnectUndoResponse,
-  ConnectMatchItem,
-  ConnectMessageItem,
-  CompatibilityBreakdown,
-  FlatmateIntention,
+import {
+  DEFAULT_MATCHING_WEIGHTS,
+  type ConnectCandidateView,
+  type ConnectLikeItem,
+  type ConnectSwipeResponse,
+  type ConnectUndoResponse,
+  type ConnectMatchItem,
+  type ConnectMessageItem,
+  type CompatibilityBreakdown,
+  type FlatmateIntention,
+  type UserMatchingPreferencesView,
+  type UpdateMatchingPreferencesInput,
+  type ConnectDiscoverFilters,
 } from '@aashvo/contracts';
 
 // In-memory demo state for unauthenticated preview sessions
@@ -119,14 +124,26 @@ export function calculateCompatibilityScore(
     Math.max(0, foodScore + sleepScore + cleanScore + budgetScore + interestsScore),
   );
 
+  const explanations: string[] = [];
+  if (foodScore >= 20) explanations.push('Similar food habit preference');
+  if (sleepScore >= 15) explanations.push('Compatible sleep schedule');
+  if (cleanScore >= 15) explanations.push('Aligned cleanliness standard');
+  if (budgetScore >= 15) explanations.push('Overlapping monthly budget');
+  if (shared.length > 0) explanations.push(`${shared.length} shared interest(s): ${shared.join(', ')}`);
+
   return {
     overallScore,
+    scoreAvailable: true,
+    budgetScore,
+    locationScore: 18,
+    lifestyleScore: cleanScore,
     foodScore,
     sleepScore,
     cleanlinessScore: cleanScore,
-    budgetScore,
+    moveInScore: 10,
     interestsScore,
     sharedInterests: shared,
+    explanations: explanations.length > 0 ? explanations : ['Attributes match general preferences'],
   };
 }
 
@@ -200,20 +217,30 @@ function getDemoCandidates(currentUser?: {
 
 export const connectService = {
   /**
-   * Discovers candidate flatmates for the swipe deck.
+   * Discovers candidate flatmates for the swipe deck with advanced filtering.
    */
-  async getCandidates(params?: {
-    city?: string;
-    locality?: string;
-    limit?: number;
-    intention?: FlatmateIntention;
-  }): Promise<ConnectCandidateView[]> {
+  async getCandidates(params?: ConnectDiscoverFilters): Promise<ConnectCandidateView[]> {
     try {
       const query = new URLSearchParams();
       if (params?.city) query.set('city', params.city);
       if (params?.locality) query.set('locality', params.locality);
-      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.gender && params.gender !== 'any') query.set('gender', params.gender);
+      if (params?.minBudget !== undefined) query.set('minBudget', String(params.minBudget));
+      if (params?.maxBudget !== undefined) query.set('maxBudget', String(params.maxBudget));
+      if (params?.moveInDate) query.set('moveInDate', params.moveInDate);
+      if (params?.moveInFlexible !== undefined) query.set('moveInFlexible', String(params.moveInFlexible));
+      if (params?.roomType) query.set('roomType', params.roomType);
+      if (params?.furnishing) query.set('furnishing', params.furnishing);
+      if (params?.foodHabit) query.set('foodHabit', params.foodHabit);
+      if (params?.sleepRoutine) query.set('sleepRoutine', params.sleepRoutine);
+      if (params?.cleanliness) query.set('cleanliness', params.cleanliness);
+      if (params?.petFriendly !== undefined) query.set('petFriendly', String(params.petFriendly));
+      if (params?.smoking) query.set('smoking', params.smoking);
+      if (params?.hasRoom !== undefined) query.set('hasRoom', String(params.hasRoom));
       if (params?.intention) query.set('intention', params.intention);
+      if (params?.sortBy) query.set('sortBy', params.sortBy);
+      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.offset !== undefined) query.set('offset', String(params.offset));
 
       const path = query.toString() ? `/connect/candidates?${query.toString()}` : '/connect/candidates';
       return await apiClient.get<ConnectCandidateView[]>(path);
@@ -223,14 +250,67 @@ export const connectService = {
         (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
         (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test');
       if (isTestEnv) {
-        const demo = getDemoCandidates();
+        let demo = getDemoCandidates();
         if (params?.intention) {
-          return demo.filter((c) => c.intentions?.includes(params.intention!));
+          demo = demo.filter((c) => c.intentions?.includes(params.intention!));
+        }
+        if (params?.city) {
+          demo = demo.filter((c) => c.city.toLowerCase() === params.city!.toLowerCase());
+        }
+        if (params?.maxBudget) {
+          demo = demo.filter((c) => c.budgetMax <= params.maxBudget!);
+        }
+        if (params?.sortBy === 'budget_asc') {
+          demo.sort((a, b) => a.budgetMax - b.budgetMax);
+        } else if (params?.sortBy === 'budget_desc') {
+          demo.sort((a, b) => b.budgetMax - a.budgetMax);
         }
         return demo;
       }
-      // Never represent sample profiles as genuine users in production: return empty array for empty state
       return [];
+    }
+  },
+
+  /**
+   * Retrieves current user personalized matching weights & priorities.
+   */
+  async getMatchingPreferences(): Promise<UserMatchingPreferencesView> {
+    try {
+      return await apiClient.get<UserMatchingPreferencesView>('/connect/preferences');
+    } catch {
+      return {
+        userId: 'local-user',
+        weights: { ...DEFAULT_MATCHING_WEIGHTS },
+        normalizedWeights: { ...DEFAULT_MATCHING_WEIGHTS },
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  },
+
+  /**
+   * Updates current user personalized matching weights.
+   */
+  async updateMatchingPreferences(
+    input: UpdateMatchingPreferencesInput,
+  ): Promise<UserMatchingPreferencesView> {
+    try {
+      return await apiClient.put<UserMatchingPreferencesView>('/connect/preferences', input);
+    } catch {
+      const w = {
+        budget: input.budget ?? DEFAULT_MATCHING_WEIGHTS.budget,
+        location: input.location ?? DEFAULT_MATCHING_WEIGHTS.location,
+        lifestyle: input.lifestyle ?? DEFAULT_MATCHING_WEIGHTS.lifestyle,
+        food: input.food ?? DEFAULT_MATCHING_WEIGHTS.food,
+        sleep: input.sleep ?? DEFAULT_MATCHING_WEIGHTS.sleep,
+        moveIn: input.moveIn ?? DEFAULT_MATCHING_WEIGHTS.moveIn,
+        interests: input.interests ?? DEFAULT_MATCHING_WEIGHTS.interests,
+      };
+      return {
+        userId: 'local-user',
+        weights: w,
+        normalizedWeights: w,
+        updatedAt: new Date().toISOString(),
+      };
     }
   },
 
@@ -467,6 +547,43 @@ export const connectService = {
     } catch {
       demoHidden = discoveryHidden;
       return { discoveryHidden };
+    }
+  },
+
+  /**
+   * Retrieves all incoming likes received from other users.
+   */
+  async getIncomingLikes(): Promise<ConnectLikeItem[]> {
+    try {
+      return await apiClient.get<ConnectLikeItem[]>('/connect/likes/received');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Retrieves all outgoing likes sent by the current user.
+   */
+  async getOutgoingLikes(): Promise<ConnectLikeItem[]> {
+    try {
+      return await apiClient.get<ConnectLikeItem[]>('/connect/likes/sent');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Unmatches an active match.
+   */
+  async unmatch(matchId: string, reason?: string): Promise<{ success: boolean; matchId: string }> {
+    try {
+      return await apiClient.post<{ success: boolean; matchId: string }>(
+        `/connect/matches/${matchId}/unmatch`,
+        { reason },
+      );
+    } catch {
+      demoMatches = demoMatches.filter((m) => m.id !== matchId);
+      return { success: true, matchId };
     }
   },
 
