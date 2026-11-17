@@ -738,20 +738,57 @@ export class AuthService {
           } else {
             const existingUser = await tx.user.findUnique({
               where: { email: normalizedEmail },
-              include: { profile: true },
+              include: {
+                profile: true,
+                oauthIdentities: {
+                  where: {
+                    provider: 'google',
+                    providerSubject: claims.sub,
+                  },
+                },
+              },
             });
 
             if (existingUser) {
-              // SECURITY ENFORCEMENT: Block automatic account takeover.
-              // Existing accounts must authenticate with existing credentials and explicitly authorize linking.
-              throw new ConflictException({
-                code: ERROR_CODES.CONFLICT,
-                message:
-                  'An account with this email already exists. Please sign in with your email and password, then link your Google account in Settings.',
-              });
-            }
+              const matchedIdentity = existingUser.oauthIdentities?.[0];
+              if (matchedIdentity) {
+                // Legitimate concurrent sign-in: a racing transaction just created or linked
+                // this user with this exact verified Google provider and subject.
+                targetUser = existingUser;
+                if (targetUser.accountStatus !== 'active') {
+                  throw new ForbiddenException({
+                    code: ERROR_CODES.ACCOUNT_SUSPENDED,
+                    message: 'Account is suspended or inactive.',
+                  });
+                }
 
-            const newUserId = randomUUID();
+                await tx.oAuthIdentity.update({
+                  where: { id: matchedIdentity.id },
+                  data: {
+                    lastSignInAt: new Date(),
+                    providerEmail: normalizedEmail,
+                    rawClaims: claims as unknown as Prisma.InputJsonValue,
+                  },
+                });
+
+                if (targetUser.profile && !targetUser.profile.emailVerified) {
+                  await tx.profile.update({
+                    where: { id: targetUser.id },
+                    data: { emailVerified: true },
+                  });
+                  targetUser.profile.emailVerified = true;
+                }
+              } else {
+                // SECURITY ENFORCEMENT: Block automatic account takeover.
+                // Existing accounts must authenticate with existing credentials and explicitly authorize linking.
+                throw new ConflictException({
+                  code: ERROR_CODES.CONFLICT,
+                  message:
+                    'An account with this email already exists. Please sign in with your email and password, then link your Google account in Settings.',
+                });
+              }
+            } else {
+              const newUserId = randomUUID();
             const fullName =
               claims.fullName?.trim() ||
               normalizedEmail.split('@')[0];
@@ -788,6 +825,7 @@ export class AuthService {
               },
               include: { profile: true },
             });
+            }
           }
 
           if (!targetUser) {

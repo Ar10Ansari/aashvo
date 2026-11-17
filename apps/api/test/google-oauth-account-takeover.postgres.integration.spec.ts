@@ -300,10 +300,12 @@ describe('Google OAuth Account Takeover Defense & Account Linking Integration', 
 
       const results = await Promise.all(promises);
 
-      // All 5 must succeed with 200 OK
+      // All 5 must succeed with 200 OK and reference the exact same user ID
+      const expectedUserId = results[0].body.user.id;
       for (const r of results) {
         expect(r.status).toBe(200);
         expect(r.body.accessToken).toBeDefined();
+        expect(r.body.user.id).toBe(expectedUserId);
       }
 
       // Exactly 1 user and 1 oauth identity created
@@ -314,6 +316,91 @@ describe('Google OAuth Account Takeover Defense & Account Linking Integration', 
         where: { provider: 'google', providerSubject: sub },
       });
       expect(dbIdentities).toHaveLength(1);
+    });
+
+    it('rejects sign-in with different Google subject for existing user with same email', async () => {
+      const email = 'google-sec-diff-sub-user@example.com';
+      const originalSub = 'google-sub-original-12345';
+      const rogueSub = 'google-sub-rogue-99999';
+
+      const originalToken = 'mock-google-original-token';
+      mockVerifier.mockClaims[originalToken] = {
+        sub: originalSub,
+        email,
+        emailVerified: true,
+        fullName: 'Original Google User',
+      };
+
+      // First valid registration via Google
+      const initRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: originalToken })
+        .expect(200);
+
+      const originalUserId = initRes.body.user.id;
+
+      // Attacker presents different Google sub for same email
+      const rogueToken = 'mock-google-rogue-token';
+      mockVerifier.mockClaims[rogueToken] = {
+        sub: rogueSub,
+        email,
+        emailVerified: true,
+        fullName: 'Rogue Google User',
+      };
+
+      const rogueRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/google')
+        .send({ idToken: rogueToken })
+        .expect(409);
+
+      expect(rogueRes.body.error.code).toBe(ERROR_CODES.CONFLICT);
+      expect(rogueRes.body.error.message).toContain('An account with this email already exists');
+
+      // Verify no second OAuth identity was created
+      const identities = await prisma.oAuthIdentity.findMany({
+        where: { userId: originalUserId },
+      });
+      expect(identities).toHaveLength(1);
+      expect(identities[0].providerSubject).toBe(originalSub);
+    });
+
+    it('consistently handles repeated concurrent Google sign-in bursts without timing instability', async () => {
+      for (let burst = 1; burst <= 3; burst++) {
+        const burstEmail = `google-sec-burst-${burst}@example.com`;
+        const burstSub = `google-sub-burst-${burst}-77777`;
+        const burstToken = `mock-google-burst-token-${burst}`;
+
+        mockVerifier.mockClaims[burstToken] = {
+          sub: burstSub,
+          email: burstEmail,
+          emailVerified: true,
+          fullName: `Burst User ${burst}`,
+        };
+
+        const concurrentReqs = Array.from({ length: 5 }).map(() =>
+          request(app.getHttpServer())
+            .post('/api/v1/auth/google')
+            .send({ idToken: burstToken }),
+        );
+
+        const burstResults = await Promise.all(concurrentReqs);
+        const burstUserId = burstResults[0].body.user?.id;
+        expect(burstUserId).toBeDefined();
+
+        for (const res of burstResults) {
+          expect(res.status).toBe(200);
+          expect(res.body.accessToken).toBeDefined();
+          expect(res.body.user.id).toBe(burstUserId);
+        }
+
+        const usersInDb = await prisma.user.findMany({ where: { email: burstEmail } });
+        expect(usersInDb).toHaveLength(1);
+
+        const idsInDb = await prisma.oAuthIdentity.findMany({
+          where: { provider: 'google', providerSubject: burstSub },
+        });
+        expect(idsInDb).toHaveLength(1);
+      }
     });
   });
 
