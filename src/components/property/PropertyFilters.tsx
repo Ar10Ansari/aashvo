@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { POPULAR_LOCALITIES } from '../../data/seedData';
 import { RotateCcw, Search } from 'lucide-react';
@@ -6,6 +6,20 @@ import { formatINR } from '../../utils/formatters';
 
 export const PropertyFilters: React.FC = () => {
   const { filters, setFilters, resetFilters } = useApp();
+  const [localSearch, setLocalSearch] = useState(filters.searchQuery);
+
+  // Synchronize local input if filters are reset or updated externally
+  useEffect(() => {
+    setLocalSearch(filters.searchQuery);
+  }, [filters.searchQuery]);
+
+  // Debounce search update to avoid re-rendering entire app tree on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters(prev => (prev.searchQuery === localSearch ? prev : { ...prev, searchQuery: localSearch }));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [localSearch, setFilters]);
 
   return (
     <div className="bg-white rounded-3xl p-5 sm:p-6 border border-charcoal-100 shadow-sm mb-8">
@@ -14,8 +28,8 @@ export const PropertyFilters: React.FC = () => {
         <Search className="w-4 h-4 text-charcoal-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
-          value={filters.searchQuery}
-          onChange={e => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+          value={localSearch}
+          onChange={e => setLocalSearch(e.target.value)}
           placeholder="Search by keywords, amenities, or street name (e.g. 'Galleria', 'Terrace', 'Balcony')..."
           className="w-full pl-11 pr-4 py-3 bg-ivory-100/80 rounded-2xl border border-charcoal-200/50 text-sm text-charcoal-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white transition-all"
         />

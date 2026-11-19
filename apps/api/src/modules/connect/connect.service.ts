@@ -403,13 +403,23 @@ export class ConnectService {
     const excludedIds: string[] = [];
 
     if (callerId) {
-      // 1. Fetch caller flatmate profile and personalized matching preferences
-      const [flatmate, pref] = await Promise.all([
+      // 1. Fetch caller flatmate profile, personalized preferences, active blocks (both directions), and swiped IDs in parallel
+      const [flatmate, pref, blocks, existingSwipes] = await Promise.all([
         this.prisma.flatmateProfile.findUnique({
           where: { userId: callerId },
         }),
         this.prisma.userMatchingPreference.findUnique({
           where: { userId: callerId },
+        }),
+        this.prisma.userBlock.findMany({
+          where: {
+            OR: [{ blockerId: callerId }, { blockedId: callerId }],
+          },
+          select: { blockerId: true, blockedId: true },
+        }),
+        this.prisma.flatmateInterest.findMany({
+          where: { senderId: callerId },
+          select: { targetUserId: true },
         }),
       ]);
 
@@ -426,27 +436,9 @@ export class ConnectService {
         };
       }
 
-      // 2. Fetch all blocked user IDs (both directions)
-      const [blocksInitiated, blocksReceived] = await Promise.all([
-        this.prisma.userBlock.findMany({
-          where: { blockerId: callerId },
-          select: { blockedId: true },
-        }),
-        this.prisma.userBlock.findMany({
-          where: { blockedId: callerId },
-          select: { blockerId: true },
-        }),
-      ]);
-      const blockedUserIds = new Set([
-        ...blocksInitiated.map((b) => b.blockedId),
-        ...blocksReceived.map((b) => b.blockerId),
-      ]);
-
-      // 3. Fetch already swiped user IDs by caller
-      const existingSwipes = await this.prisma.flatmateInterest.findMany({
-        where: { senderId: callerId },
-        select: { targetUserId: true },
-      });
+      const blockedUserIds = new Set(
+        blocks.map((b) => (b.blockerId === callerId ? b.blockedId : b.blockerId))
+      );
       const swipedUserIds = new Set(existingSwipes.map((s) => s.targetUserId));
 
       // Excluded IDs list

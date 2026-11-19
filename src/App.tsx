@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/layout/Navbar';
 import { Hero } from './components/hero/Hero';
@@ -6,21 +6,51 @@ import { TrustFeatures } from './components/features/TrustFeatures';
 import { DiscoverySection } from './components/discovery/DiscoverySection';
 import { OurFounders } from './components/about/OurFounders';
 import { Footer } from './components/layout/Footer';
-import { PropertyDetailModal } from './components/property/PropertyDetailModal';
-import { FlatmateDetailModal } from './components/flatmate/FlatmateDetailModal';
-import { ListPropertyModal } from './components/listing/ListPropertyModal';
-import { AdminModerationModal } from './components/admin/AdminModerationModal';
-import { AuthModal } from './components/auth/AuthModal';
-import { HelpCenterModal } from './components/help/HelpCenterModal';
-import { ReportModal } from './components/help/ReportModal';
-import { RentalTrustModal } from './components/rental/RentalTrustModal';
-import { ConnectModal } from './components/connect/ConnectModal';
-import { RentSplitCalculatorModal } from './components/calculator/RentSplitCalculatorModal';
-import { SavedListingsModal } from './components/saved/SavedListingsModal';
-import { MyActivityModal } from './components/activity/MyActivityModal';
-import { OnboardingModal } from './components/onboarding/OnboardingModal';
-import { MyProfileModal } from './components/profile/MyProfileModal';
 import { Toast } from './components/ui/Toast';
+
+// Route-level code splitting & dynamic imports for heavy interactive modals
+const PropertyDetailModal = lazy(() =>
+  import('./components/property/PropertyDetailModal').then(m => ({ default: m.PropertyDetailModal }))
+);
+const FlatmateDetailModal = lazy(() =>
+  import('./components/flatmate/FlatmateDetailModal').then(m => ({ default: m.FlatmateDetailModal }))
+);
+const ListPropertyModal = lazy(() =>
+  import('./components/listing/ListPropertyModal').then(m => ({ default: m.ListPropertyModal }))
+);
+const AdminModerationModal = lazy(() =>
+  import('./components/admin/AdminModerationModal').then(m => ({ default: m.AdminModerationModal }))
+);
+const AuthModal = lazy(() =>
+  import('./components/auth/AuthModal').then(m => ({ default: m.AuthModal }))
+);
+const HelpCenterModal = lazy(() =>
+  import('./components/help/HelpCenterModal').then(m => ({ default: m.HelpCenterModal }))
+);
+const ReportModal = lazy(() =>
+  import('./components/help/ReportModal').then(m => ({ default: m.ReportModal }))
+);
+const RentalTrustModal = lazy(() =>
+  import('./components/rental/RentalTrustModal').then(m => ({ default: m.RentalTrustModal }))
+);
+const ConnectModal = lazy(() =>
+  import('./components/connect/ConnectModal').then(m => ({ default: m.ConnectModal }))
+);
+const RentSplitCalculatorModal = lazy(() =>
+  import('./components/calculator/RentSplitCalculatorModal').then(m => ({ default: m.RentSplitCalculatorModal }))
+);
+const SavedListingsModal = lazy(() =>
+  import('./components/saved/SavedListingsModal').then(m => ({ default: m.SavedListingsModal }))
+);
+const MyActivityModal = lazy(() =>
+  import('./components/activity/MyActivityModal').then(m => ({ default: m.MyActivityModal }))
+);
+const OnboardingModal = lazy(() =>
+  import('./components/onboarding/OnboardingModal').then(m => ({ default: m.OnboardingModal }))
+);
+const MyProfileModal = lazy(() =>
+  import('./components/profile/MyProfileModal').then(m => ({ default: m.MyProfileModal }))
+);
 
 const MainLayout: React.FC = () => {
   const {
@@ -82,105 +112,107 @@ const MainLayout: React.FC = () => {
       {/* 9. Property-provider CTA banner and complete useful footer */}
       <Footer />
 
-      {/* Interactive Modals */}
-      {selectedProperty && (
-        <PropertyDetailModal
-          property={selectedProperty}
-          onClose={() => setSelectedProperty(null)}
-        />
-      )}
+      {/* Interactive Modals (Code-Split & Lazy Loaded) */}
+      <Suspense fallback={null}>
+        {selectedProperty && (
+          <PropertyDetailModal
+            property={selectedProperty}
+            onClose={() => setSelectedProperty(null)}
+          />
+        )}
 
-      {selectedFlatmate && (
-        <FlatmateDetailModal
-          flatmate={selectedFlatmate}
-          onClose={() => setSelectedFlatmate(null)}
-        />
-      )}
+        {selectedFlatmate && (
+          <FlatmateDetailModal
+            flatmate={selectedFlatmate}
+            onClose={() => setSelectedFlatmate(null)}
+          />
+        )}
 
-      {isListPropertyOpen && (
-        <ListPropertyModal
-          onClose={() => setIsListPropertyOpen(false)}
-        />
-      )}
+        {isListPropertyOpen && (
+          <ListPropertyModal
+            onClose={() => setIsListPropertyOpen(false)}
+          />
+        )}
 
-      {isAdminOpen && (
-        <AdminModerationModal
-          onClose={() => setIsAdminOpen(false)}
-        />
-      )}
+        {isAdminOpen && (
+          <AdminModerationModal
+            onClose={() => setIsAdminOpen(false)}
+          />
+        )}
 
-      {isAuthOpen && (
-        <AuthModal
-          onClose={() => setIsAuthOpen(false)}
-        />
-      )}
+        {isAuthOpen && (
+          <AuthModal
+            onClose={() => setIsAuthOpen(false)}
+          />
+        )}
 
-      {isHelpOpen && (
-        <HelpCenterModal
-          onClose={() => setIsHelpOpen(false)}
-        />
-      )}
+        {isHelpOpen && (
+          <HelpCenterModal
+            onClose={() => setIsHelpOpen(false)}
+          />
+        )}
 
-      {reportingTarget && (
-        <ReportModal
-          target={reportingTarget}
-          onClose={() => setReportingTarget(null)}
-        />
-      )}
+        {reportingTarget && (
+          <ReportModal
+            target={reportingTarget}
+            onClose={() => setReportingTarget(null)}
+          />
+        )}
 
-      {isRentalTrustOpen && (
-        <RentalTrustModal
-          isOpen={isRentalTrustOpen}
-          onClose={() => setIsRentalTrustOpen(false)}
-          currentUser={currentUser}
-        />
-      )}
+        {isRentalTrustOpen && (
+          <RentalTrustModal
+            isOpen={isRentalTrustOpen}
+            onClose={() => setIsRentalTrustOpen(false)}
+            currentUser={currentUser}
+          />
+        )}
 
-      {isConnectOpen && (
-        <ConnectModal
-          isOpen={isConnectOpen}
-          onClose={() => setIsConnectOpen(false)}
-          initialTab={connectInitialTab}
-        />
-      )}
+        {isConnectOpen && (
+          <ConnectModal
+            isOpen={isConnectOpen}
+            onClose={() => setIsConnectOpen(false)}
+            initialTab={connectInitialTab}
+          />
+        )}
 
-      {isMyActivityOpen && (
-        <MyActivityModal
-          isOpen={isMyActivityOpen}
-          onClose={() => setIsMyActivityOpen(false)}
-          initialTab={myActivityInitialTab}
-        />
-      )}
+        {isMyActivityOpen && (
+          <MyActivityModal
+            isOpen={isMyActivityOpen}
+            onClose={() => setIsMyActivityOpen(false)}
+            initialTab={myActivityInitialTab}
+          />
+        )}
 
-      {isMyProfileOpen && (
-        <MyProfileModal
-          isOpen={isMyProfileOpen}
-          onClose={() => setIsMyProfileOpen(false)}
-          onOpenOnboarding={(step) => openOnboardingModal(step)}
-        />
-      )}
+        {isMyProfileOpen && (
+          <MyProfileModal
+            isOpen={isMyProfileOpen}
+            onClose={() => setIsMyProfileOpen(false)}
+            onOpenOnboarding={(step) => openOnboardingModal(step)}
+          />
+        )}
 
-      {isOnboardingOpen && (
-        <OnboardingModal
-          isOpen={isOnboardingOpen}
-          onClose={() => setIsOnboardingOpen(false)}
-          initialStep={onboardingInitialStep}
-        />
-      )}
+        {isOnboardingOpen && (
+          <OnboardingModal
+            isOpen={isOnboardingOpen}
+            onClose={() => setIsOnboardingOpen(false)}
+            initialStep={onboardingInitialStep}
+          />
+        )}
 
-      {isCalculatorOpen && (
-        <RentSplitCalculatorModal
-          isOpen={isCalculatorOpen}
-          onClose={() => setIsCalculatorOpen(false)}
-        />
-      )}
+        {isCalculatorOpen && (
+          <RentSplitCalculatorModal
+            isOpen={isCalculatorOpen}
+            onClose={() => setIsCalculatorOpen(false)}
+          />
+        )}
 
-      {isSavedOpen && (
-        <SavedListingsModal
-          isOpen={isSavedOpen}
-          onClose={() => setIsSavedOpen(false)}
-        />
-      )}
+        {isSavedOpen && (
+          <SavedListingsModal
+            isOpen={isSavedOpen}
+            onClose={() => setIsSavedOpen(false)}
+          />
+        )}
+      </Suspense>
 
       {/* Global Status Toast */}
       <Toast />

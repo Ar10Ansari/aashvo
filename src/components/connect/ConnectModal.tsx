@@ -218,10 +218,10 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-[#F5F3ED] rounded-3xl shadow-2xl border border-charcoal-200 overflow-hidden flex flex-col h-[94vh] max-h-[820px]">
         {/* Modal Top Header */}
-        <div className="bg-white px-4 sm:px-6 py-3.5 border-b border-charcoal-200/80 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center space-x-3">
+        <div className="bg-white px-3 sm:px-6 py-3 sm:py-3.5 border-b border-charcoal-200/80 flex items-center justify-between flex-shrink-0 flex-wrap gap-2 sm:gap-0">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="flex items-baseline space-x-1.5">
-              <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-forest-700">
+              <span className="font-serif text-lg sm:text-2xl font-bold tracking-tight text-forest-700">
                 aashvo connect
               </span>
               <span className="w-2 h-2 rounded-full bg-sand-400 inline-block" />
@@ -232,7 +232,7 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
           </div>
 
           {/* Tab Navigation Controls */}
-          <div className="flex items-center bg-ivory-200/90 p-1 rounded-2xl border border-charcoal-200/60 shadow-inner">
+          <div className="flex items-center bg-ivory-200/90 p-1 rounded-2xl border border-charcoal-200/60 shadow-inner max-w-full overflow-x-auto no-scrollbar">
             <button
               onClick={() => {
                 setActiveTab('discover');

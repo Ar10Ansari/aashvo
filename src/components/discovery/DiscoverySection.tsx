@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PropertyCard } from '../property/PropertyCard';
 import { PropertyFilters } from '../property/PropertyFilters';
@@ -28,97 +28,110 @@ export const DiscoverySection: React.FC = () => {
   const [selectedFoodHabit, setSelectedFoodHabit] = useState<FoodHabit | 'all'>('all');
   const [flatmateRoomStatus, setFlatmateRoomStatus] = useState<'all' | 'has_room' | 'needs_room'>('all');
 
-  // Filter properties logic
-  const filteredProperties = properties.filter(prop => {
-    // Only active listings in public grid
-    if (prop.status !== 'active') return false;
+  // Filter properties logic (memoized to eliminate redundant renders)
+  const filteredProperties = useMemo(() => {
+    return properties.filter(prop => {
+      // Only active listings in public grid
+      if (prop.status !== 'active') return false;
 
-    // Filter by Active Tab Category
-    if (activeTab === 'family_stays') {
-      if (prop.category !== 'family_stays' && !prop.familyLivesOnProperty) {
+      // Filter by Active Tab Category
+      if (activeTab === 'family_stays') {
+        if (prop.category !== 'family_stays' && !prop.familyLivesOnProperty) {
+          return false;
+        }
+        if (selectedMealFilter !== 'all') {
+          if (prop.mealsOffered !== selectedMealFilter) return false;
+        }
+      } else if (activeTab === 'entire_flats') {
+        if (prop.roomType !== 'entire_flat') {
+          return false;
+        }
+      }
+
+      // Search query
+      if (filters.searchQuery) {
+        const q = filters.searchQuery.toLowerCase();
+        const match =
+          prop.title.toLowerCase().includes(q) ||
+          prop.locality.toLowerCase().includes(q) ||
+          prop.city.toLowerCase().includes(q) ||
+          prop.description.toLowerCase().includes(q) ||
+          prop.amenities.some(a => a.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+
+      // Locality
+      if (filters.locality && filters.locality !== 'All Localities') {
+        const cleanLoc = filters.locality.split(',')[0].trim();
+        if (!prop.locality.toLowerCase().includes(cleanLoc.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Room Type (applicable in general or entire flat mode)
+      if (activeTab !== 'family_stays' && activeTab !== 'entire_flats' && filters.roomType && filters.roomType !== 'all') {
+        if (prop.roomType !== filters.roomType) return false;
+      }
+
+      // Furnishing
+      if (filters.furnishing && filters.furnishing !== 'all') {
+        if (prop.furnishing !== filters.furnishing) return false;
+      }
+
+      // Provider Type
+      if (filters.providerType && filters.providerType !== 'all') {
+        if (prop.providerType !== filters.providerType) return false;
+      }
+
+      // Max Budget
+      if (prop.rent > filters.maxBudget) {
         return false;
       }
-      if (selectedMealFilter !== 'all') {
-        if (prop.mealsOffered !== selectedMealFilter) return false;
+
+      return true;
+    });
+  }, [properties, activeTab, selectedMealFilter, filters]);
+
+  // Filter flatmates logic (memoized to eliminate redundant renders)
+  const filteredFlatmates = useMemo(() => {
+    return flatmates.filter(mate => {
+      if (filters.searchQuery) {
+        const q = filters.searchQuery.toLowerCase();
+        const match =
+          mate.name.toLowerCase().includes(q) ||
+          mate.occupation.toLowerCase().includes(q) ||
+          mate.targetLocalities.some(l => l.toLowerCase().includes(q)) ||
+          mate.bio.toLowerCase().includes(q);
+        if (!match) return false;
       }
-    } else if (activeTab === 'entire_flats') {
-      if (prop.roomType !== 'entire_flat') {
+
+      if (selectedFoodHabit !== 'all' && mate.foodHabit !== selectedFoodHabit) {
         return false;
       }
-    }
 
-    // Search query
-    if (filters.searchQuery) {
-      const q = filters.searchQuery.toLowerCase();
-      const match =
-        prop.title.toLowerCase().includes(q) ||
-        prop.locality.toLowerCase().includes(q) ||
-        prop.city.toLowerCase().includes(q) ||
-        prop.description.toLowerCase().includes(q) ||
-        prop.amenities.some(a => a.toLowerCase().includes(q));
-      if (!match) return false;
-    }
+      if (flatmateRoomStatus === 'has_room' && !mate.hasRoom) return false;
+      if (flatmateRoomStatus === 'needs_room' && mate.hasRoom) return false;
 
-    // Locality
-    if (filters.locality && filters.locality !== 'All Localities') {
-      const cleanLoc = filters.locality.split(',')[0].trim();
-      if (!prop.locality.toLowerCase().includes(cleanLoc.toLowerCase())) {
+      if (mate.budgetMax > filters.maxBudget) {
         return false;
       }
+
+      return true;
+    });
+  }, [flatmates, filters, selectedFoodHabit, flatmateRoomStatus]);
+
+  // Category counts (memoized in a single pass)
+  const { familyStayCount, entireFlatCount } = useMemo(() => {
+    let family = 0;
+    let entire = 0;
+    for (const p of properties) {
+      if (p.status === 'active') {
+        if (p.category === 'family_stays' || p.familyLivesOnProperty) family++;
+        if (p.roomType === 'entire_flat') entire++;
+      }
     }
-
-    // Room Type (applicable in general or entire flat mode)
-    if (activeTab !== 'family_stays' && activeTab !== 'entire_flats' && filters.roomType && filters.roomType !== 'all') {
-      if (prop.roomType !== filters.roomType) return false;
-    }
-
-    // Furnishing
-    if (filters.furnishing && filters.furnishing !== 'all') {
-      if (prop.furnishing !== filters.furnishing) return false;
-    }
-
-    // Provider Type
-    if (filters.providerType && filters.providerType !== 'all') {
-      if (prop.providerType !== filters.providerType) return false;
-    }
-
-    // Max Budget
-    if (prop.rent > filters.maxBudget) {
-      return false;
-    }
-
-    return true;
-  });
-
-  // Filter flatmates logic
-  const filteredFlatmates = flatmates.filter(mate => {
-    if (filters.searchQuery) {
-      const q = filters.searchQuery.toLowerCase();
-      const match =
-        mate.name.toLowerCase().includes(q) ||
-        mate.occupation.toLowerCase().includes(q) ||
-        mate.targetLocalities.some(l => l.toLowerCase().includes(q)) ||
-        mate.bio.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-
-    if (selectedFoodHabit !== 'all' && mate.foodHabit !== selectedFoodHabit) {
-      return false;
-    }
-
-    if (flatmateRoomStatus === 'has_room' && !mate.hasRoom) return false;
-    if (flatmateRoomStatus === 'needs_room' && mate.hasRoom) return false;
-
-    if (mate.budgetMax > filters.maxBudget) {
-      return false;
-    }
-
-    return true;
-  });
-
-  // Category counts
-  const familyStayCount = properties.filter(p => p.status === 'active' && (p.category === 'family_stays' || p.familyLivesOnProperty)).length;
-  const entireFlatCount = properties.filter(p => p.status === 'active' && p.roomType === 'entire_flat').length;
+    return { familyStayCount: family, entireFlatCount: entire };
+  }, [properties]);
 
   return (
     <section id="discovery-section" className="py-16 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-20">

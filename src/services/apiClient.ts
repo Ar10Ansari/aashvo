@@ -42,6 +42,7 @@ class ApiClient {
   private refreshToken: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
   private refreshFailed = false;
+  private inFlightGetRequests = new Map<string, Promise<any>>();
 
   constructor() {
     // Restore access token from session storage if present (refresh token is strictly NOT stored in Web Storage)
@@ -149,6 +150,32 @@ class ApiClient {
   }
 
   public async request<T = unknown>(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<T> {
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
+    const dedupeKey = isGet ? `${path}__${this.accessToken || 'anon'}` : null;
+
+    if (dedupeKey && this.inFlightGetRequests.has(dedupeKey)) {
+      return this.inFlightGetRequests.get(dedupeKey) as Promise<T>;
+    }
+
+    const execPromise = this.executeRequest<T>(path, options);
+
+    if (dedupeKey) {
+      this.inFlightGetRequests.set(dedupeKey, execPromise);
+    }
+
+    try {
+      return await execPromise;
+    } finally {
+      if (dedupeKey) {
+        this.inFlightGetRequests.delete(dedupeKey);
+      }
+    }
+  }
+
+  private async executeRequest<T = unknown>(
     path: string,
     options: RequestInit = {},
   ): Promise<T> {

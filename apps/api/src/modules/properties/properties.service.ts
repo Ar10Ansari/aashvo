@@ -58,12 +58,20 @@ type PropertyWithPhotosAndOwner = Property & {
 
 @Injectable()
 export class PropertiesService {
+  private readonly searchCache = new Map<string, { data: PaginatedPropertiesResponseDto; expiresAt: number }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
 
-  private toListItem(prop: Property & { photos?: PropertyPhoto[] }): PropertyListItemDto {
+  public clearSearchCache(): void {
+    this.searchCache.clear();
+  }
+
+  private toListItem(
+    prop: Property & { photos?: Array<{ photoUrl: string; isPrimary: boolean }> },
+  ): PropertyListItemDto {
     const primary = prop.photos?.find((p) => p.isPrimary) ?? prop.photos?.[0];
     return {
       id: prop.id,
@@ -226,6 +234,7 @@ export class PropertiesService {
       },
     });
 
+    this.clearSearchCache();
     return this.toDetail(created as PropertyWithPhotosAndOwner);
   }
 
@@ -340,6 +349,7 @@ export class PropertiesService {
       requestId: meta?.requestId,
     });
 
+    this.clearSearchCache();
     return this.toDetail(updated as PropertyWithPhotosAndOwner);
   }
 
@@ -381,6 +391,8 @@ export class PropertiesService {
       ipAddress: meta?.ipAddress,
       requestId: meta?.requestId,
     });
+
+    this.clearSearchCache();
   }
 
   async getPropertyById(
@@ -428,6 +440,12 @@ export class PropertiesService {
   }
 
   async searchProperties(query: SearchPropertiesQueryDto): Promise<PaginatedPropertiesResponseDto> {
+    const cacheKey = JSON.stringify(query);
+    const cached = this.searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(50, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
@@ -472,11 +490,23 @@ export class PropertiesService {
         orderBy,
         skip,
         take: limit,
-        include: { photos: true },
+        include: {
+          photos: {
+            select: {
+              id: true,
+              propertyId: true,
+              photoUrl: true,
+              roomTag: true,
+              isPrimary: true,
+              sortOrder: true,
+              createdAt: true,
+            },
+          },
+        },
       }),
     ]);
 
-    return {
+    const result: PaginatedPropertiesResponseDto = {
       data: items.map((item) => this.toListItem(item)),
       pagination: {
         total,
@@ -486,6 +516,15 @@ export class PropertiesService {
         hasNext: page * limit < total,
       },
     };
+
+    // Cache bounded to 100 entries with 30s TTL
+    if (this.searchCache.size >= 100) {
+      const oldestKey = this.searchCache.keys().next().value;
+      if (oldestKey) this.searchCache.delete(oldestKey);
+    }
+    this.searchCache.set(cacheKey, { data: result, expiresAt: Date.now() + 30000 });
+
+    return result;
   }
 
   async getMyProperties(ownerId: string): Promise<PropertyListItemDto[]> {
@@ -547,6 +586,7 @@ export class PropertiesService {
       metadata: { status: dto.status, reason: dto.reason },
     });
 
+    this.clearSearchCache();
     return this.toDetail(updated as PropertyWithPhotosAndOwner);
   }
 

@@ -130,10 +130,16 @@ export function calculateCompatibilityScore(
 
 @Injectable()
 export class FlatmatesService {
+  private readonly searchCache = new Map<string, { data: PaginatedFlatmatesResponseDto; expiresAt: number }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  public clearSearchCache(): void {
+    this.searchCache.clear();
+  }
 
   private toView(
     item: FlatmateWithUser,
@@ -278,6 +284,7 @@ export class FlatmatesService {
       metadata: { city: created.city, age: created.age },
     });
 
+    this.clearSearchCache();
     return this.toView(created as FlatmateWithUser);
   }
 
@@ -359,6 +366,7 @@ export class FlatmatesService {
       requestId: meta?.requestId,
     });
 
+    this.clearSearchCache();
     return this.toView(updated as FlatmateWithUser);
   }
 
@@ -423,6 +431,15 @@ export class FlatmatesService {
     query: SearchFlatmatesQueryDto,
     callerUserId?: string,
   ): Promise<PaginatedFlatmatesResponseDto> {
+    const isAnonymous = !callerUserId;
+    const cacheKey = isAnonymous ? JSON.stringify(query) : null;
+    if (cacheKey) {
+      const cached = this.searchCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
+
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(50, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
@@ -440,34 +457,37 @@ export class FlatmatesService {
         : {}),
     };
 
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.flatmateProfile.count({ where }),
-      this.prisma.flatmateProfile.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          profile: {
-            select: {
-              fullName: true,
-              avatarUrl: true,
-              idVerified: true,
-              phoneVerified: true,
+    // Concurrently fetch counts, items, and caller profile in a single parallel roundtrip
+    const [countsAndItems, callerProfile] = await Promise.all([
+      this.prisma.$transaction([
+        this.prisma.flatmateProfile.count({ where }),
+        this.prisma.flatmateProfile.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+          include: {
+            profile: {
+              select: {
+                fullName: true,
+                avatarUrl: true,
+                idVerified: true,
+                phoneVerified: true,
+              },
             },
           },
-        },
-      }),
+        }),
+      ]),
+      callerUserId
+        ? this.prisma.flatmateProfile.findUnique({
+            where: { userId: callerUserId },
+          })
+        : Promise.resolve(null),
     ]);
 
-    let callerProfile: FlatmateProfile | null = null;
-    if (callerUserId) {
-      callerProfile = await this.prisma.flatmateProfile.findUnique({
-        where: { userId: callerUserId },
-      });
-    }
+    const [total, items] = countsAndItems;
 
-    return {
+    const result: PaginatedFlatmatesResponseDto = {
       data: items.map((item) => this.toView(item as FlatmateWithUser, callerProfile)),
       pagination: {
         total,
@@ -477,5 +497,15 @@ export class FlatmatesService {
         hasNext: page * limit < total,
       },
     };
+
+    if (cacheKey) {
+      if (this.searchCache.size >= 100) {
+        const oldestKey = this.searchCache.keys().next().value;
+        if (oldestKey) this.searchCache.delete(oldestKey);
+      }
+      this.searchCache.set(cacheKey, { data: result, expiresAt: Date.now() + 30000 });
+    }
+
+    return result;
   }
 }

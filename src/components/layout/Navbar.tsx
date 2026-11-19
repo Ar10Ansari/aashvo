@@ -430,7 +430,7 @@ export const Navbar: React.FC = () => {
           <div className="flex md:hidden items-center space-x-2">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-charcoal-600 hover:text-forest-700 hover:bg-ivory-300 focus:outline-none"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-charcoal-600 hover:text-forest-700 hover:bg-ivory-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600"
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
