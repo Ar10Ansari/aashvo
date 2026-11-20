@@ -1247,3 +1247,24 @@ export async function updateTicketStatusInBackend(
     return { success: false, error: msg };
   }
 }
+
+export async function submitSafetyReportToBackend(reportData: {
+  targetType: 'listing' | 'flatmate' | 'user';
+  targetId: string;
+  targetTitle?: string;
+  reasonCode: string;
+  details: string;
+  reporterEmail?: string;
+  reporterName?: string;
+}): Promise<{ success: boolean; reportId?: string; error?: string }> {
+  try {
+    const res = await apiClient.post<{ success: boolean; id: string; message: string }>(
+      '/support/tickets/reports',
+      reportData,
+    );
+    return { success: true, reportId: res.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to submit safety report';
+    return { success: false, error: message };
+  }
+}

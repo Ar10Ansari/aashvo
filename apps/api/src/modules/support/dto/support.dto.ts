@@ -199,3 +199,60 @@ export class SupportTicketResponseDto implements SupportTicketView {
   messages?: TicketMessageResponseDto[];
 }
 
+export class CreateSafetyReportDto {
+  @ApiProperty({ enum: ['listing', 'flatmate', 'user'], example: 'listing' })
+  @IsIn(['listing', 'flatmate', 'user'])
+  targetType!: 'listing' | 'flatmate' | 'user';
+
+  @ApiProperty({ example: 'b0f443b2-70b8-4e31-8f92-9111812837f4' })
+  @IsUUID('4')
+  targetId!: string;
+
+  @ApiPropertyOptional({ example: 'Bright 2BHK in Indiranagar' })
+  @IsOptional()
+  @IsString()
+  targetTitle?: string;
+
+  @ApiProperty({ example: 'scam_fraud' })
+  @IsString()
+  reasonCode!: string;
+
+  @ApiProperty({ example: 'Host demanded advance payment before viewing.' })
+  @IsString()
+  details!: string;
+
+  @ApiPropertyOptional({ example: 'user@example.com' })
+  @IsOptional()
+  @IsEmail()
+  reporterEmail?: string;
+
+  @ApiPropertyOptional({ example: 'Rahul S.' })
+  @IsOptional()
+  @IsString()
+  reporterName?: string;
+}
+
+export class SafetyReportResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  targetType!: string;
+
+  @ApiProperty()
+  targetTitle!: string;
+
+  @ApiProperty()
+  reasonCode!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiProperty()
+  priority!: string;
+
+  @ApiProperty()
+  createdAt!: string;
+}
+
+

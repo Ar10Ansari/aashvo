@@ -14,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.module';
 import type {
+  CreateSafetyReportDto,
   CreateSupportTicketDto,
   CreateTicketMessageDto,
   GuestSupportTicketDto,
@@ -382,5 +383,53 @@ export class SupportService {
     });
 
     return this.mapTicketToDto(updated);
+  }
+
+  async submitSafetyReport(
+    callerUserId: string | null,
+    dto: CreateSafetyReportDto,
+    meta?: CallMeta,
+  ): Promise<{ success: boolean; id: string; message: string }> {
+    const isListing = dto.targetType === 'listing';
+    const isFlatmate = dto.targetType === 'flatmate';
+    const isUser = dto.targetType === 'user';
+
+    const report = await this.prisma.safetyReport.create({
+      data: {
+        reporterId: callerUserId,
+        reporterEmail: dto.reporterEmail,
+        targetType: dto.targetType as any,
+        reportedPropertyId: isListing ? dto.targetId : null,
+        reportedFlatmateId: isFlatmate ? dto.targetId : null,
+        reportedUserId: isUser ? dto.targetId : null,
+        targetTitle: dto.targetTitle || `${dto.targetType} report`,
+        reasonCode: dto.reasonCode,
+        details: dto.details,
+        priority: 'high',
+        status: 'pending',
+      },
+    });
+
+    await this.audit.record({
+      eventType: 'safety_report.created',
+      entityType: 'safety_report',
+      entityId: report.id,
+      actorId: callerUserId ?? null,
+      actorRole: callerUserId ? 'user' : 'guest',
+      outcome: 'success',
+      ipAddress: meta?.ipAddress,
+      requestId: meta?.requestId,
+      metadata: {
+        targetType: dto.targetType,
+        targetId: dto.targetId,
+        reasonCode: dto.reasonCode,
+      },
+    });
+
+    return {
+      success: true,
+      id: report.id,
+      message: 'Safety report received and queued for investigation.',
+    };
   }
 }

@@ -5,7 +5,7 @@ import { FAQ_CATEGORY_LABELS } from '../../data/faqData';
 import { TicketStatus, TicketPriority } from '../../types';
 import { canTransitionTicketStatus } from '../../services/supportService';
 import { isTrustedAdminSession } from '../../services/authorizationService';
-import { reviewPropertyVerification } from '../../services/marketplaceService';
+import { reviewPropertyVerification, moderatePropertyInBackend } from '../../services/marketplaceService';
 import {
   X,
   ShieldCheck,
@@ -73,20 +73,32 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ onCl
     return null;
   }, [selectedTicketId, supportTickets, filteredTickets]);
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
     if (!isAdmin) {
       showToast('Action blocked: Verified staff credentials required.');
       return;
     }
-    updatePropertyStatus(id, 'active');
+    const res = await moderatePropertyInBackend(id, 'active');
+    if (res.success) {
+      updatePropertyStatus(id, 'active');
+      showToast('Listing approved and published to marketplace.');
+    } else {
+      showToast(res.error || 'Failed to moderate listing.');
+    }
   };
 
-  const handlePause = (id: string) => {
+  const handlePause = async (id: string) => {
     if (!isAdmin) {
       showToast('Action blocked: Verified staff credentials required.');
       return;
     }
-    updatePropertyStatus(id, 'paused');
+    const res = await moderatePropertyInBackend(id, 'paused');
+    if (res.success) {
+      updatePropertyStatus(id, 'paused');
+      showToast('Listing paused.');
+    } else {
+      showToast(res.error || 'Failed to pause listing.');
+    }
   };
 
   const handleMarkRented = (id: string) => {

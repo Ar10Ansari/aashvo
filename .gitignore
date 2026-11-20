@@ -106,3 +106,7 @@ supabase/backups/
 # Editor and agent configurations
 opencode.jsonc
 .neon
+
+# Playwright
+test-results/
+playwright-report/

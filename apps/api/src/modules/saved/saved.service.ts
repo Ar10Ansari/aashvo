@@ -120,6 +120,30 @@ export class SavedService {
     return { success: true, message: 'Item removed from shortlist.' };
   }
 
+  async deleteSavedItemByTypeAndTarget(
+    userId: string,
+    itemType: string,
+    targetId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const item = await this.prisma.savedItem.findFirst({
+      where: {
+        userId,
+        itemType: itemType as any,
+        targetId,
+      },
+    });
+
+    if (!item) {
+      return { success: true, message: 'Item already removed from shortlist.' };
+    }
+
+    await this.prisma.savedItem.delete({
+      where: { id: item.id },
+    });
+
+    return { success: true, message: 'Item removed from shortlist.' };
+  }
+
   async checkSaved(
     userId: string,
     itemType: string,

@@ -54,6 +54,18 @@ export class SavedController {
     return this.savedService.getSavedItems(user.id, query);
   }
 
+  @Delete(':itemType/:targetId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove an item from personal shortlist by itemType and targetId' })
+  @ApiResponse({ status: 200, description: 'Item removed successfully' })
+  async deleteSavedItemByTypeAndTarget(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('itemType') itemType: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.savedService.deleteSavedItemByTypeAndTarget(user.id, itemType, targetId);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove an item from personal shortlist' })

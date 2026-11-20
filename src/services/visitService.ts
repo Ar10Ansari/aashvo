@@ -43,7 +43,7 @@ class VisitService {
     reason?: string,
   ): Promise<PropertyVisitItem> {
     const payload: RescheduleVisitInput = { rescheduledAt, reason };
-    return apiClient.patch<PropertyVisitItem>(`/visits/${encodeURIComponent(visitId)}/reschedule`, payload);
+    return apiClient.post<PropertyVisitItem>(`/visits/${encodeURIComponent(visitId)}/reschedule`, payload);
   }
 }
 

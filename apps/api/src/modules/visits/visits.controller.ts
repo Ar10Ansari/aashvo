@@ -94,4 +94,16 @@ export class VisitsController {
   ): Promise<PropertyVisitResponseDto> {
     return this.visitsService.rescheduleVisit(user.id, id, dto);
   }
+
+  @Patch(':id/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Propose a rescheduled time slot for an appointment (PATCH alias)' })
+  @ApiResponse({ status: 200, type: PropertyVisitResponseDto })
+  async rescheduleVisitPatch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RescheduleVisitDto,
+  ): Promise<PropertyVisitResponseDto> {
+    return this.visitsService.rescheduleVisit(user.id, id, dto);
+  }
 }

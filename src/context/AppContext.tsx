@@ -20,6 +20,9 @@ import {
   getReportPriorityAndLabel,
   isDuplicateReport,
   dispatchSupportNotification,
+  createSupportTicketInBackend,
+  createGuestSupportTicketInBackend,
+  submitSafetyReportToBackend,
   createSupportTicketInSupabase,
   createSafetyReportInSupabase,
   fetchSupportTicketsFromSupabase,
@@ -318,6 +321,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       ],
     };
+
+    // 1. Authoritative NestJS REST endpoint
+    if (!currentUser?.isDemo) {
+      try {
+        const isGuest = !currentUser;
+        const backendResult = isGuest
+          ? await createGuestSupportTicketInBackend({
+              guestEmail: ticketData.userEmail,
+              guestName: ticketData.userName,
+              guestPhone: ticketData.userPhone,
+              category: ticketData.category,
+              subject: ticketData.subject,
+              description: ticketData.description,
+            })
+          : await createSupportTicketInBackend({
+              category: ticketData.category,
+              subject: ticketData.subject,
+              description: ticketData.description,
+              priority,
+              referenceListingId: ticketData.referenceListingId,
+              referenceUserId: ticketData.referenceUserId,
+            });
+
+        if (backendResult.success && backendResult.ticket) {
+          setSupportTickets(prev => [backendResult.ticket!, ...prev]);
+          dispatchSupportNotification('ticket_created', {
+            ticketNumber: backendResult.ticket.ticketNumber,
+            recipientEmail: backendResult.ticket.userEmail,
+            subject: backendResult.ticket.subject,
+          });
+          showToast(`Support ticket ${backendResult.ticket.ticketNumber} created! Our team will respond shortly.`);
+          return backendResult.ticket;
+        }
+      } catch {
+        // continue to Supabase fallback
+      }
+    }
 
     if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
       const result = await createSupportTicketInSupabase({ ...ticketData, priority }, initialMessage);
@@ -654,6 +694,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
+
+    // 1. Authoritative NestJS REST endpoint
+    if (!currentUser?.isDemo) {
+      try {
+        const backendResult = await submitSafetyReportToBackend({
+          targetType: reportData.targetType,
+          targetId: reportData.targetId,
+          targetTitle: reportData.targetTitle,
+          reasonCode: reportData.reasonCode,
+          details: reportData.details,
+          reporterEmail: reportData.reporterEmail,
+          reporterName: reportData.reporterName,
+        });
+
+        if (backendResult.success) {
+          const persistedReport = { ...newReport, id: backendResult.reportId || reportId };
+          setSafetyReports(prev => [persistedReport, ...prev]);
+          if (reportData.targetType === 'listing') {
+            submitReport(reportData.targetId, reportData.targetTitle, label, reportData.details);
+          }
+          return {
+            success: true,
+            reportId: backendResult.reportId || reportId,
+            message: 'Report received and queued for investigation. Thank you for keeping Aashvo safe.',
+          };
+        }
+      } catch {
+        // continue to Supabase fallback
+      }
+    }
 
     if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
       const result = await createSafetyReportInSupabase(reportData);

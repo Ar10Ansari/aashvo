@@ -22,6 +22,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import type { RequestWithId } from '../../common/interceptors/request-id.interceptor';
 import type { AuthenticatedUser } from '../users/users.types';
 import {
+  CreateSafetyReportDto,
   CreateSupportTicketDto,
   CreateTicketMessageDto,
   GuestSupportTicketDto,
@@ -61,6 +62,21 @@ export class SupportController {
     @Req() req: RequestWithId,
   ): Promise<SupportTicketResponseDto> {
     return this.supportService.createGuestTicket(dto, {
+      ipAddress: req.ip,
+      requestId: req.requestId,
+    });
+  }
+
+  @Public()
+  @Post('reports')
+  @ApiOperation({ summary: 'Submit a safety or listing violation report (Public / Guest / Authenticated)' })
+  @ApiResponse({ status: 201, description: 'Safety report submitted successfully' })
+  async submitSafetyReport(
+    @CurrentUser() user: AuthenticatedUser | null,
+    @Body() dto: CreateSafetyReportDto,
+    @Req() req: RequestWithId,
+  ): Promise<{ success: boolean; id: string; message: string }> {
+    return this.supportService.submitSafetyReport(user?.id || null, dto, {
       ipAddress: req.ip,
       requestId: req.requestId,
     });

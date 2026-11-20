@@ -29,9 +29,10 @@ class SavedService {
    * Checks whether a specific target item is already shortlisted by the user.
    */
   async checkSaved(itemType: SavedItemType, targetId: string): Promise<{ isSaved: boolean; id?: string }> {
-    return apiClient.get<{ isSaved: boolean; id?: string }>(
+    const res = await apiClient.get<{ isSaved: boolean; savedId?: string; id?: string }>(
       `/saved/check/${encodeURIComponent(itemType)}/${encodeURIComponent(targetId)}`,
     );
+    return { isSaved: res.isSaved, id: res.savedId || res.id };
   }
 }
 

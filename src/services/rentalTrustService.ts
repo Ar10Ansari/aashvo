@@ -306,6 +306,16 @@ export function isBackendActive(): boolean {
 export async function fetchAgreementsForUser(
   userId: string
 ): Promise<{ success: boolean; agreements: TenancyAgreement[]; error?: string; isDemo?: boolean }> {
+  // 1. Authoritative NestJS REST endpoint
+  try {
+    const backendRes = await fetchAgreementsFromBackend();
+    if (backendRes.success && backendRes.agreements) {
+      return { success: true, agreements: backendRes.agreements };
+    }
+  } catch {
+    // continue to fallback checks
+  }
+
   if (isBackendActive() && supabase) {
     try {
       const { data, error } = await supabase
