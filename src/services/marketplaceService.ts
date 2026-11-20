@@ -1157,12 +1157,18 @@ export async function fetchFamilyStaysFromBackend(
 }
 
 export async function createPropertyInBackend(
-  property: Partial<Property>
+  property: Partial<Property>,
+  options?: { asDraft?: boolean }
 ): Promise<{ success: boolean; property?: Property; errors?: string[] }> {
   try {
+    const rawImages = (property.images || []).filter((url) => typeof url === 'string' && url.trim().length > 0);
+    const validPhotos = rawImages.length > 0
+      ? rawImages.map((url, idx) => ({ photoUrl: url, isPrimary: idx === 0, sortOrder: idx }))
+      : [{ photoUrl: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&q=80', isPrimary: true, sortOrder: 0 }];
+
     const payload = {
       title: property.title,
-      description: property.description,
+      description: property.description || `Spacious and comfortable accommodation in ${property.locality || 'a prime neighborhood'}, ${property.city || 'Delhi NCR'}.`,
       category: property.category || 'flats_rooms',
       propertyType: property.propertyType || 'apartment',
       roomType: property.roomType || 'private_room',
@@ -1187,7 +1193,8 @@ export async function createPropertyInBackend(
       familyLivesOnProperty: Boolean(property.familyLivesOnProperty),
       mealsOffered: property.mealsOffered || 'none',
       optionalMealCost: property.optionalMealCost || null,
-      photoUrls: (property.images || []).map((url, idx) => ({ photoUrl: url, isPrimary: idx === 0 })),
+      photoUrls: validPhotos,
+      asDraft: Boolean(options?.asDraft || property.status === 'paused'),
     };
 
     const created = await apiClient.post<any>('/properties', payload);
@@ -1195,6 +1202,42 @@ export async function createPropertyInBackend(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Property creation failed';
     return { success: false, errors: [message] };
+  }
+}
+
+export async function updatePropertyInBackend(
+  propertyId: string,
+  dto: Record<string, any>
+): Promise<{ success: boolean; property?: Property; error?: string }> {
+  try {
+    const updated = await apiClient.patch<any>(`/properties/${encodeURIComponent(propertyId)}`, dto);
+    return { success: true, property: mapBackendPropertyToApp(updated) };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Property update failed';
+    return { success: false, error: message };
+  }
+}
+
+export async function deletePropertyInBackend(
+  propertyId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.delete(`/properties/${encodeURIComponent(propertyId)}`);
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Property deletion failed';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchMyPropertiesFromBackend(): Promise<{ success: boolean; properties?: Property[]; error?: string }> {
+  try {
+    const res = await apiClient.get<any[]>('/properties/mine');
+    const properties = (res || []).map(mapBackendPropertyToApp);
+    return { success: true, properties };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch owner properties';
+    return { success: false, error: message };
   }
 }
 
@@ -1212,24 +1255,62 @@ export async function moderatePropertyInBackend(
   }
 }
 
-export async function sendInquiryToBackend(
-  targetId: string,
-  targetType: 'property' | 'flatmate',
-  message: string,
-  moveInDate?: string,
-  contactPhone?: string
-): Promise<{ success: boolean; error?: string }> {
+export async function sendInquiryToBackend(params: {
+  targetId: string;
+  targetType: 'property' | 'flatmate';
+  senderName: string;
+  senderPhone: string;
+  senderEmail: string;
+  message: string;
+  moveInDate?: string;
+}): Promise<{ success: boolean; inquiry?: any; error?: string }> {
   try {
-    await apiClient.post('/inquiries', {
-      propertyId: targetType === 'property' ? targetId : null,
-      flatmateProfileId: targetType === 'flatmate' ? targetId : null,
-      message,
-      proposedMoveInDate: moveInDate || null,
-      contactPhone: contactPhone || null,
-    });
-    return { success: true };
+    const payload = {
+      propertyId: params.targetType === 'property' ? params.targetId : undefined,
+      targetFlatmateId: params.targetType === 'flatmate' ? params.targetId : undefined,
+      senderName: params.senderName.trim(),
+      senderPhone: params.senderPhone.trim(),
+      senderEmail: params.senderEmail.trim().toLowerCase(),
+      moveInDate: params.moveInDate?.trim() || undefined,
+      message: params.message.trim(),
+    };
+    const res = await apiClient.post<any>('/inquiries', payload);
+    return { success: true, inquiry: res };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to submit inquiry';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchSentInquiriesFromBackend(): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+  try {
+    const res = await apiClient.get<any[]>('/inquiries/sent');
+    return { success: true, inquiries: res || [] };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch sent inquiries';
+    return { success: false, error: message };
+  }
+}
+
+export async function fetchReceivedInquiriesFromBackend(): Promise<{ success: boolean; inquiries?: any[]; error?: string }> {
+  try {
+    const res = await apiClient.get<any[]>('/inquiries/received');
+    return { success: true, inquiries: res || [] };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch received inquiries';
+    return { success: false, error: message };
+  }
+}
+
+export async function updateInquiryStatusInBackend(
+  inquiryId: string,
+  status: 'accepted' | 'declined'
+): Promise<{ success: boolean; inquiry?: any; error?: string }> {
+  try {
+    const res = await apiClient.patch<any>(`/inquiries/${encodeURIComponent(inquiryId)}/status`, { status });
+    return { success: true, inquiry: res };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update inquiry status';
     return { success: false, error: message };
   }
 }

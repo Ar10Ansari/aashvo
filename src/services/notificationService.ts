@@ -38,7 +38,7 @@ class NotificationService {
    * Marks all unread notifications as read.
    */
   async markAllAsRead(): Promise<{ success: boolean; markedCount: number }> {
-    return apiClient.post<{ success: boolean; markedCount: number }>('/notifications/mark-all-read');
+    return apiClient.post<{ success: boolean; markedCount: number }>('/notifications/read-all');
   }
 }
 

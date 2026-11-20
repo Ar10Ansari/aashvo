@@ -95,8 +95,12 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
 
   const handleSendInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in to send an inquiry.');
+      return;
+    }
     if (!senderName || !senderPhone) {
-      showToast('Please provide your name and phone number to schedule a visit.');
+      showToast('Please provide your name and phone number to send an inquiry.');
       return;
     }
 
@@ -105,11 +109,11 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({ proper
       const result = await submitConnectRequest({
         targetId: property.id,
         targetType: 'property',
-        senderName,
-        senderPhone,
-        senderEmail,
+        senderName: senderName.trim(),
+        senderPhone: senderPhone.trim(),
+        senderEmail: senderEmail || currentUser.email || 'user@example.com',
         moveInDate,
-        message,
+        message: message.trim(),
       });
       if (result.success) setInquirySent(true);
     } finally {

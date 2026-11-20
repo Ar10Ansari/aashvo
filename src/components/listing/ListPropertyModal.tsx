@@ -255,41 +255,98 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
 
     setIsSubmitting(true);
     try {
-      await addProperty({
-        title,
-        locality,
-        city,
-        state,
-        pincode,
-        coordinates,
-        addressShort,
-        propertyType,
-        roomType: finalRoomType,
-        category: finalCategory,
-        familyLivesOnProperty: listingIntent === 'family_stays' ? true : familyLivesOnProperty,
-        mealsOffered: listingIntent === 'family_stays' ? mealsOffered : 'none',
-        optionalMealCost: mealsOffered === 'optional_extra' ? optionalMealCost : 0,
-        rent,
-        deposit,
-        maintenance,
-        electricityPerUnit,
-        brokerageFee: providerType === 'owner' ? 0 : brokerageFee,
-        providerType,
-        providerName: providerName || (listingIntent === 'family_stays' ? 'Resident Host Family' : 'Verified Host'),
-        providerContact: providerContact || '+91 98101 XXXXX',
-        furnishing,
-        bedrooms,
-        bathrooms,
-        availableFrom,
-        images: images.length > 0 ? images : [SAMPLE_PHOTO_PRESETS[0]],
-        amenities: selectedAmenities,
-        rules: listingIntent === 'family_stays'
-          ? ['Family home respect', 'Cleanliness observed', 'Co-living harmony']
-          : ['Cleanliness observed', 'Co-living respect'],
-        genderPreference,
-        description: description.trim() || `Well-maintained ${finalRoomType} in ${locality}, ${city}. Ready for move-in.`,
-        featured: false,
-      });
+      await addProperty(
+        {
+          title,
+          locality,
+          city,
+          state,
+          pincode,
+          coordinates,
+          addressShort,
+          propertyType,
+          roomType: finalRoomType,
+          category: finalCategory,
+          familyLivesOnProperty: listingIntent === 'family_stays' ? true : familyLivesOnProperty,
+          mealsOffered: listingIntent === 'family_stays' ? mealsOffered : 'none',
+          optionalMealCost: mealsOffered === 'optional_extra' ? optionalMealCost : 0,
+          rent,
+          deposit,
+          maintenance,
+          electricityPerUnit,
+          brokerageFee: providerType === 'owner' ? 0 : brokerageFee,
+          providerType,
+          providerName: providerName || (listingIntent === 'family_stays' ? 'Resident Host Family' : 'Verified Host'),
+          providerContact: providerContact || '+91 98101 XXXXX',
+          furnishing,
+          bedrooms,
+          bathrooms,
+          availableFrom,
+          images: images.length > 0 ? images : [SAMPLE_PHOTO_PRESETS[0]],
+          amenities: selectedAmenities,
+          rules: listingIntent === 'family_stays'
+            ? ['Family home respect', 'Cleanliness observed', 'Co-living harmony']
+            : ['Cleanliness observed', 'Co-living respect'],
+          genderPreference,
+          description: description.trim() || `Well-maintained ${finalRoomType} in ${locality}, ${city}. Ready for move-in.`,
+          featured: false,
+        },
+        { asDraft: false }
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!title.trim() && !locality.trim()) {
+      showToast('Please enter at least a listing title or locality to save a draft.');
+      return;
+    }
+
+    const finalCategory: 'family_stays' | 'flats_rooms' = listingIntent === 'family_stays' ? 'family_stays' : 'flats_rooms';
+    const finalRoomType: RoomType = listingIntent === 'entire_flats' ? 'entire_flat' : roomType;
+
+    setIsSubmitting(true);
+    try {
+      await addProperty(
+        {
+          title: title.trim() || 'Untitled Draft Property',
+          locality: locality.trim() || 'Unspecified Locality',
+          city: city.trim() || 'Gurugram',
+          state,
+          pincode,
+          coordinates,
+          addressShort: addressShort.trim() || `${locality || 'Locality'}, ${city}`,
+          propertyType,
+          roomType: finalRoomType,
+          category: finalCategory,
+          familyLivesOnProperty: listingIntent === 'family_stays' ? true : familyLivesOnProperty,
+          mealsOffered: listingIntent === 'family_stays' ? mealsOffered : 'none',
+          optionalMealCost: mealsOffered === 'optional_extra' ? optionalMealCost : 0,
+          rent: rent || 10000,
+          deposit: deposit || 0,
+          maintenance: maintenance || 0,
+          electricityPerUnit,
+          brokerageFee: providerType === 'owner' ? 0 : brokerageFee,
+          providerType,
+          providerName: providerName || (listingIntent === 'family_stays' ? 'Resident Host Family' : 'Verified Host'),
+          providerContact: providerContact || '+91 98101 XXXXX',
+          furnishing,
+          bedrooms,
+          bathrooms,
+          availableFrom,
+          images: images.length > 0 ? images : [SAMPLE_PHOTO_PRESETS[0]],
+          amenities: selectedAmenities,
+          rules: listingIntent === 'family_stays'
+            ? ['Family home respect', 'Cleanliness observed', 'Co-living harmony']
+            : ['Cleanliness observed', 'Co-living respect'],
+          genderPreference,
+          description: description.trim() || `Draft listing in ${locality || 'locality'}, ${city}.`,
+          featured: false,
+        },
+        { asDraft: true }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -1062,24 +1119,44 @@ export const ListPropertyModal: React.FC<ListPropertyModalProps> = ({ onClose })
           )}
 
           {step < 5 ? (
-            <button
-              type="button"
-              onClick={handleNextStep}
-              className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
-            >
-              <span>Continue to Step {step + 1}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={isSubmitting}
+                className="px-4 py-2 border border-charcoal-200 hover:bg-ivory-100 text-charcoal-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+              >
+                Save Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
+              >
+                <span>Continue to Step {step + 1}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50"
-            >
-              <Sparkles className="w-4 h-4 text-sand-300" />
-              <span>{isSubmitting ? 'Submitting Listing...' : 'Publish Listing on Aashvo'}</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={isSubmitting}
+                className="px-4 py-2.5 border border-charcoal-200 hover:bg-ivory-100 text-charcoal-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+              >
+                Save as Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-6 py-2.5 bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center space-x-2 disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4 text-sand-300" />
+                <span>{isSubmitting ? 'Submitting Listing...' : 'Publish Listing on Aashvo'}</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

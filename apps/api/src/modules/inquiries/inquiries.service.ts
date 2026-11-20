@@ -196,6 +196,24 @@ export class InquiriesService {
         },
       });
 
+      // Deliver in-app notification to listing owner / recipient
+      if (recipientId) {
+        await tx.userNotification.create({
+          data: {
+            userId: recipientId,
+            category: 'property_inquiry',
+            title: 'New Property Inquiry',
+            body: `${inq.senderName} submitted an inquiry for "${targetTitle}".`,
+            targetUrl: inq.propertyId ? `/properties/${inq.propertyId}` : undefined,
+            metadata: {
+              inquiryId: inq.id,
+              propertyId: inq.propertyId,
+              targetFlatmateId: inq.targetFlatmateId,
+            },
+          },
+        });
+      }
+
       return inq;
     });
 
@@ -282,6 +300,13 @@ export class InquiriesService {
       });
     }
 
+    if (inquiry.status !== 'pending') {
+      throw new BadRequestException({
+        code: ERROR_CODES.BAD_REQUEST,
+        message: `Inquiry has already been ${inquiry.status} and cannot be modified further.`,
+      });
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const inq = await tx.interestRequest.update({
         where: { id: inquiryId },
@@ -303,6 +328,22 @@ export class InquiriesService {
             status: dto.status,
           },
           status: 'pending',
+        },
+      });
+
+      // In-app notification for sender
+      const targetLabel = inq.property?.title ?? inq.targetFlatmate?.occupation ?? 'listing';
+      await tx.userNotification.create({
+        data: {
+          userId: inq.senderId,
+          category: 'property_inquiry',
+          title: `Inquiry ${dto.status === 'accepted' ? 'Accepted' : 'Declined'}`,
+          body: `Your inquiry for "${targetLabel}" was ${dto.status}.`,
+          targetUrl: inq.propertyId ? `/properties/${inq.propertyId}` : undefined,
+          metadata: {
+            inquiryId: inq.id,
+            status: dto.status,
+          },
         },
       });
 

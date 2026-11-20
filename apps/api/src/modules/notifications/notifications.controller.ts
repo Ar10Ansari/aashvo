@@ -59,7 +59,7 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(user.id, id);
   }
 
-  @Post('read-all')
+  @Post(['read-all', 'mark-all-read'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark all caller notifications as read' })
   @ApiResponse({ status: 200, description: 'All notifications marked as read' })

@@ -267,13 +267,27 @@ export class PropertiesService {
 
     // Status transition authorization
     let statusToUpdate = existing.status;
+    let shouldUpdateAvailability = false;
     if (dto.status && dto.status !== existing.status) {
       if (role === 'admin') {
         statusToUpdate = dto.status as PrismaModerationStatus;
+        shouldUpdateAvailability = true;
       } else {
         // Owner can pause or rent an active listing, or submit draft for review
         if (dto.status === 'paused' || dto.status === 'rented' || dto.status === 'pending_review') {
           statusToUpdate = dto.status as PrismaModerationStatus;
+          shouldUpdateAvailability = true;
+        } else if (dto.status === 'active') {
+          // If the listing was previously active and is currently paused or rented, owner can unpause / restore availability
+          if (existing.status === 'paused' || existing.status === 'rented') {
+            statusToUpdate = PrismaModerationStatus.active;
+            shouldUpdateAvailability = true;
+          } else {
+            throw new ForbiddenException({
+              code: ERROR_CODES.FORBIDDEN,
+              message: 'Only administrators can activate new unapproved listings.',
+            });
+          }
         } else {
           throw new ForbiddenException({
             code: ERROR_CODES.FORBIDDEN,
@@ -313,6 +327,7 @@ export class PropertiesService {
         ...(dto.mealsOffered !== undefined ? { mealsOffered: dto.mealsOffered as PrismaMealsOffered } : {}),
         ...(dto.optionalMealCost !== undefined ? { optionalMealCost: new Prisma.Decimal(dto.optionalMealCost) } : {}),
         status: statusToUpdate,
+        ...(shouldUpdateAvailability ? { lastAvailabilityCheck: new Date() } : {}),
       },
       include: {
         photos: true,

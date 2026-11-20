@@ -34,17 +34,17 @@ import {
 import {
   supabase,
   isLiveBackendConfigured,
-  mapSupabasePropertyToApp,
-  mapSupabaseFlatmateToApp,
 } from '../services/supabase';
-import { apiClient } from '../services/apiClient';
 import {
+  fetchPropertiesFromBackend,
+  fetchMyPropertiesFromBackend,
+  fetchFlatmatesFromBackend,
+  createPropertyInBackend,
+  updatePropertyInBackend,
+  sendInquiryToBackend,
   fetchPropertiesFromSupabase,
   fetchAllPropertiesForAdminFromSupabase,
   fetchFlatmatesFromSupabase,
-  createPropertyInSupabase,
-  updateListingStatusInSupabase,
-  submitInquiryInSupabase,
 } from '../services/marketplaceService';
 import {
   sanitizeStoredUser,
@@ -149,7 +149,10 @@ interface AppContextType {
   updateTicketPriority: (ticketId: string, newPriority: TicketPriority) => Promise<boolean>;
   assignTicket: (ticketId: string, adminId: string, adminName: string) => Promise<boolean>;
   updatePropertyStatus: (id: string, status: ListingStatus) => void;
-  addProperty: (property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>) => Promise<boolean>;
+  addProperty: (
+    property: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>,
+    options?: { asDraft?: boolean }
+  ) => Promise<boolean>;
   connectRequests: ConnectRequest[];
   submitConnectRequest: (req: Omit<ConnectRequest, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
   isLoadingData: boolean;
@@ -790,48 +793,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDataLoadError(null);
 
     try {
-      if (isLiveBackendConfigured && supabase) {
-        const [propRes, flatmateRes] = await Promise.all([
-          fetchPropertiesFromSupabase(),
-          fetchFlatmatesFromSupabase(),
-        ]);
+      // 1. Fetch live properties and flatmates from NestJS REST API
+      const [propRes, flatmateRes] = await Promise.all([
+        fetchPropertiesFromBackend().catch(() => ({ success: false, properties: [] as Property[] })),
+        fetchFlatmatesFromBackend().catch(() => ({ success: false, flatmates: [] as Flatmate[] })),
+      ]);
 
-        const errors: string[] = [];
-        if (propRes.success) {
-          setProperties(propRes.properties || []);
-        } else {
-          setProperties([]);
-          errors.push(propRes.error || 'Could not load property listings.');
+      let loadedProps: Property[] = [];
+      if (propRes.success && propRes.properties) {
+        loadedProps = propRes.properties;
+      } else if (isLiveBackendConfigured && supabase) {
+        const fallback = await fetchPropertiesFromSupabase().catch(() => ({ success: false, properties: [] as Property[] }));
+        if (fallback.success && fallback.properties) {
+          loadedProps = fallback.properties;
         }
+      }
 
-        if (flatmateRes.success) {
-          setFlatmates(flatmateRes.flatmates || []);
-        } else {
-          setFlatmates([]);
-          errors.push(flatmateRes.error || 'Could not load flatmate profiles.');
-        }
-
-        if (errors.length > 0) {
-          setDataLoadError(errors.join(' '));
-        }
-      } else {
-        // Query Render REST API when Supabase client is not directly configured
+      // If user is authenticated, also load their owned listings (including pending review & drafts)
+      if (currentUser) {
         try {
-          const [propRes, flatmateRes] = await Promise.all([
-            apiClient.get<{ items: any[] }>('/properties').catch(() => ({ items: [] })),
-            apiClient.get<{ items: any[] }>('/flatmates').catch(() => ({ items: [] })),
-          ]);
-          setProperties(Array.isArray(propRes?.items) ? propRes.items.map(mapSupabasePropertyToApp) : []);
-          setFlatmates(Array.isArray(flatmateRes?.items) ? flatmateRes.items.map(mapSupabaseFlatmateToApp) : []);
-          setDataLoadError(null);
+          const myPropsRes = await fetchMyPropertiesFromBackend();
+          if (myPropsRes.success && myPropsRes.properties && myPropsRes.properties.length > 0) {
+            const existingIds = new Set(loadedProps.map(p => p.id));
+            const myNewProps = myPropsRes.properties.filter(p => !existingIds.has(p.id));
+            loadedProps = [...myNewProps, ...loadedProps];
+          }
         } catch {
-          setProperties([]);
-          setFlatmates([]);
+          // Non-blocking if /properties/mine is not available
+        }
+      }
+
+      setProperties(loadedProps);
+
+      if (flatmateRes.success && flatmateRes.flatmates) {
+        setFlatmates(flatmateRes.flatmates);
+      } else if (isLiveBackendConfigured && supabase) {
+        const fallbackFlat = await fetchFlatmatesFromSupabase().catch(() => ({ success: false, flatmates: [] as Flatmate[] }));
+        if (fallbackFlat.success && fallbackFlat.flatmates) {
+          setFlatmates(fallbackFlat.flatmates);
         }
       }
     } catch (err) {
-      setProperties([]);
-      setFlatmates([]);
       setDataLoadError(err instanceof Error ? err.message : 'Unable to connect to marketplace services.');
     } finally {
       setIsLoadingData(false);
@@ -991,8 +993,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map(p => (p.id === id ? { ...p, status, lastVerifiedDate: new Date().toISOString() } : p))
     );
 
-    if (isLiveBackendConfigured && supabase) {
-      updateListingStatusInSupabase(id, status).then(res => {
+    // First update local state optimistically
+    setProperties(prev =>
+      prev.map(p => (p.id === id ? { ...p, status, lastVerifiedDate: new Date().toISOString() } : p))
+    );
+
+    updatePropertyInBackend(id, { status })
+      .then(res => {
         if (res.success) {
           showToast(`Listing status updated to ${status.toUpperCase()}`);
         } else {
@@ -1004,85 +1011,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           showToast(`Status update failed: ${res.error || 'Server authorization rejected change'}`);
         }
-      }).catch(err => {
-        console.warn('[Supabase Listing Status Update Notice]', err);
+      })
+      .catch(err => {
         if (previousStatus) {
           setProperties(prev =>
             prev.map(p => (p.id === id ? { ...p, status: previousStatus } : p))
           );
         }
-        showToast('Network error updating listing status.');
+        showToast(err instanceof Error ? err.message : 'Network error updating listing status.');
       });
-    } else {
-      showToast(`Listing status updated to ${status.toUpperCase()} (Preview mode)`);
+  };
+
+  const addProperty = async (
+    newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>,
+    options?: { asDraft?: boolean }
+  ): Promise<boolean> => {
+    if (!currentUser) {
+      showToast('Please sign in with a verified account to publish a listing.');
+      return false;
+    }
+
+    try {
+      const res = await createPropertyInBackend(newPropData, options);
+      if (res.success && res.property) {
+        setProperties(prev => [res.property!, ...prev]);
+        setIsListPropertyOpen(false);
+        const isDraft = options?.asDraft || res.property.status === 'paused';
+        showToast(isDraft ? 'Listing saved as draft.' : '🎉 Property submitted to moderation queue for verification!');
+        return true;
+      }
+
+      const errorMessage = res.errors?.join(' ') || 'Listing submission failed. Please verify all required fields.';
+      showToast(errorMessage);
+      return false;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Property creation failed.';
+      showToast(errorMessage);
+      return false;
     }
   };
 
-  const addProperty = async (newPropData: Omit<Property, 'id' | 'status' | 'lastVerifiedDate'>): Promise<boolean> => {
-    const newProp: Property = {
-      ...newPropData,
-      id: `prop-${Date.now()}`,
-      status: 'pending_review', // Default to pending review for safety
-      lastVerifiedDate: new Date().toISOString(),
-    };
-    if (isLiveBackendConfigured && supabase) {
-      if (!currentUser || currentUser.isDemo) {
-        showToast('Please sign in with a verified account to publish a listing.');
-        return false;
-      }
-      const res = await createPropertyInSupabase(newPropData, currentUser);
-      if (!res.success || !res.property) {
-        showToast(`Listing submission failed: ${res.errors?.join(' ') || 'Please try again.'}`);
-        return false;
-      }
-      setProperties(prev => [res.property!, ...prev]);
-      setIsListPropertyOpen(false);
-      showToast('🎉 Property submitted to moderation queue for verification!');
-      return true;
+  const submitConnectRequest = async (
+    reqData: Omit<ConnectRequest, 'id' | 'createdAt'>
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) {
+      const error = 'Please sign in before sending an inquiry.';
+      showToast(error);
+      return { success: false, error };
     }
 
-    setProperties(prev => [newProp, ...prev]);
-    setIsListPropertyOpen(false);
-    showToast('Listing saved to local draft preview (Cloud synchronization offline in prototype mode).');
-    return true;
-  };
-
-  const submitConnectRequest = async (reqData: Omit<ConnectRequest, 'id' | 'createdAt'>): Promise<{ success: boolean; error?: string }> => {
-    const newReq: ConnectRequest = {
-      ...reqData,
-      id: `req-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    if (isLiveBackendConfigured && supabase && !currentUser?.isDemo) {
-      if (!currentUser) {
-        const error = 'Please sign in before sending an inquiry.';
-        showToast(error);
-        return { success: false, error };
-      }
+    try {
       const isFlatmate = reqData.targetType === 'flatmate';
-      const res = await submitInquiryInSupabase({
-        listingId: isFlatmate ? undefined : reqData.targetId,
-        targetFlatmateId: isFlatmate ? reqData.targetId : undefined,
-        senderId: currentUser.id,
-        senderName: reqData.senderName,
-        senderEmail: reqData.senderEmail,
-        senderPhone: reqData.senderPhone,
+      const res = await sendInquiryToBackend({
+        targetId: reqData.targetId,
+        targetType: isFlatmate ? 'flatmate' : 'property',
+        senderName: reqData.senderName || currentUser.name || 'User',
+        senderPhone: reqData.senderPhone || currentUser.phone || '+919876543210',
+        senderEmail: reqData.senderEmail || currentUser.email || 'user@example.com',
         message: reqData.message,
         moveInDate: reqData.moveInDate,
       });
+
       if (!res.success) {
-        const error = res.error || 'Please complete verification before sending inquiries.';
+        const error = res.error || 'Failed to dispatch inquiry.';
         showToast(`Inquiry dispatch failed: ${error}`);
         return { success: false, error };
       }
+
+      const newReq: ConnectRequest = {
+        ...reqData,
+        id: res.inquiry?.id || `req-${Date.now()}`,
+        createdAt: res.inquiry?.createdAt || new Date().toISOString(),
+      };
+
       setConnectRequests(prev => [newReq, ...prev]);
       showToast(isFlatmate ? 'Direct connection request dispatched to flatmate!' : 'Direct inquiry dispatched to host!');
       return { success: true };
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Inquiry dispatch failed.';
+      showToast(error);
+      return { success: false, error };
     }
-
-    setConnectRequests(prev => [newReq, ...prev]);
-    showToast('Direct inquiry recorded in local preview (Live notifications activate upon Supabase configuration).');
-    return { success: true };
   };
 
   return (

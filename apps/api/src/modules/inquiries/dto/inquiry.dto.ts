@@ -1,5 +1,6 @@
 import { INQUIRY_STATUSES, type InquiryStatus } from '@aashvo/contracts';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
@@ -35,6 +36,7 @@ export class CreateInquiryDto {
   senderName!: string;
 
   @ApiProperty({ example: '+919876543210' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/[\s\-()]/g, '') : value))
   @IsString()
   @Matches(/^\+?[1-9]\d{9,14}$/, {
     message: 'senderPhone must be a valid international phone format (e.g. +919876543210)',
