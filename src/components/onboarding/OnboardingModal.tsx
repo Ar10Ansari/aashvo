@@ -702,7 +702,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         </div>
 
         {/* Modal Bottom Actions Footer */}
-        <div className="bg-white px-5 sm:px-7 py-3.5 border-t border-charcoal-200/80 flex items-center justify-between flex-shrink-0">
+        <div className="bg-white px-4 sm:px-7 py-3 sm:py-3.5 border-t border-charcoal-200/80 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
           <div>
             {currentStep > 1 ? (
               <button

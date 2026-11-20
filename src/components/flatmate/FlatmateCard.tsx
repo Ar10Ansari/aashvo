@@ -83,6 +83,10 @@ export const FlatmateCard: React.FC<FlatmateCardProps> = ({ flatmate, onSelect }
             <img
               src={flatmate.avatar}
               alt={flatmate.name}
+              loading="lazy"
+              decoding="async"
+              width={64}
+              height={64}
               className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md group-hover:scale-105 transition-transform"
               onError={(e) => {
                 const target = e.currentTarget;
