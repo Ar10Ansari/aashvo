@@ -357,5 +357,77 @@ describe('Connect Intelligence & 7-Dimension Matching Engine (PostgreSQL 16)', (
         expect(item.foodHabit.toLowerCase()).toBe('vegetarian');
       }
     });
+
+    it('returns scoreAvailable: false and overallScore: 0 when caller has no published flatmate profile', async () => {
+      // Register new user without creating a flatmate profile
+      const noProfileRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'noprofile.intel@aashvo.test',
+          password: 'Str0ngPassword#2026',
+          fullName: 'Kavita Mehta',
+          accountType: 'renter',
+        })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/connect/candidates')
+        .set('Authorization', `Bearer ${noProfileRes.body.accessToken}`)
+        .expect(200);
+
+      const items = res.body;
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.compatibility.scoreAvailable).toBe(false);
+        expect(item.compatibility.overallScore).toBe(0);
+        expect(item.compatibility.budgetScore).toBe(0);
+        expect(item.compatibility.locationScore).toBe(0);
+        expect(item.compatibility.explanations).toContain(
+          'Publish your flatmate profile to calculate personalized compatibility scores',
+        );
+      }
+    });
+
+    it('returns scoreAvailable: false when caller profile is unpublished (draft)', async () => {
+      // Register user with draft/unpublished profile
+      const draftUserRes = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'draft.intel@aashvo.test',
+          password: 'Str0ngPassword#2026',
+          fullName: 'Siddharth Roy',
+          accountType: 'renter',
+        })
+        .expect(201);
+
+      await prisma.flatmateProfile.create({
+        data: {
+          userId: draftUserRes.body.user.id,
+          occupation: 'UX Designer',
+          age: 26,
+          gender: 'Male',
+          city: 'Gurugram',
+          budgetMax: 20000,
+          foodHabit: 'Vegetarian',
+          sleepRoutine: 'Flexible',
+          cleanliness: 'Moderate',
+          smoking: 'No',
+          bio: 'Draft profile in progress',
+          isPublished: false, // Unpublished draft!
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/connect/candidates')
+        .set('Authorization', `Bearer ${draftUserRes.body.accessToken}`)
+        .expect(200);
+
+      const items = res.body;
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.compatibility.scoreAvailable).toBe(false);
+        expect(item.compatibility.overallScore).toBe(0);
+      }
+    });
   });
 });

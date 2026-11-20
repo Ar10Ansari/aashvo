@@ -69,6 +69,13 @@ export class PropertiesService {
     this.searchCache.clear();
   }
 
+  private getSearchCacheKey(query: SearchPropertiesQueryDto): string {
+    const entries = Object.entries(query)
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      .sort(([a], [b]) => a.localeCompare(b));
+    return JSON.stringify(entries);
+  }
+
   private toListItem(
     prop: Property & { photos?: Array<{ photoUrl: string; isPrimary: boolean }> },
   ): PropertyListItemDto {
@@ -440,10 +447,10 @@ export class PropertiesService {
   }
 
   async searchProperties(query: SearchPropertiesQueryDto): Promise<PaginatedPropertiesResponseDto> {
-    const cacheKey = JSON.stringify(query);
+    const cacheKey = this.getSearchCacheKey(query);
     const cached = this.searchCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.data;
+      return JSON.parse(JSON.stringify(cached.data));
     }
 
     const page = Math.max(1, query.page ?? 1);
@@ -517,12 +524,15 @@ export class PropertiesService {
       },
     };
 
-    // Cache bounded to 100 entries with 30s TTL
+    // Cache bounded to 100 entries with 15s TTL (instance-local bounded cache)
     if (this.searchCache.size >= 100) {
       const oldestKey = this.searchCache.keys().next().value;
       if (oldestKey) this.searchCache.delete(oldestKey);
     }
-    this.searchCache.set(cacheKey, { data: result, expiresAt: Date.now() + 30000 });
+    this.searchCache.set(cacheKey, {
+      data: JSON.parse(JSON.stringify(result)),
+      expiresAt: Date.now() + 15000,
+    });
 
     return result;
   }
@@ -752,6 +762,8 @@ export class PropertiesService {
       outcome: 'success',
       metadata: { propertyId, action: dto.action, status },
     });
+
+    this.clearSearchCache();
 
     return this.mapVerificationToDto(updated);
   }

@@ -37,6 +37,21 @@ export class ApiError extends Error {
   }
 }
 
+function safeHash(input: string): string {
+  let hash1 = 0xdeadbeef ^ 0;
+  let hash2 = 0x41c6ce57 ^ 0;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    hash1 = Math.imul(hash1 ^ ch, 2654435761);
+    hash2 = Math.imul(hash2 ^ ch, 1597334677);
+  }
+  hash1 = Math.imul(hash1 ^ (hash1 >>> 16), 2246822507);
+  hash1 ^= Math.imul(hash2 ^ (hash2 >>> 13), 3266489909);
+  hash2 = Math.imul(hash2 ^ (hash2 >>> 16), 2246822507);
+  hash2 ^= Math.imul(hash1 ^ (hash1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & hash2) + (hash1 >>> 0)).toString(16);
+}
+
 class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
@@ -149,30 +164,156 @@ class ApiClient {
     return this.refreshPromise;
   }
 
+  private getCanonicalUrl(path: string): string | null {
+    try {
+      const baseUrl = this.getBaseUrl();
+      let cleanPath = path.startsWith('/') ? path : `/${path}`;
+      if (cleanPath.startsWith('/api/v1/')) {
+        cleanPath = cleanPath.substring('/api/v1'.length);
+      }
+      const rawUrl = path.startsWith('http://') || path.startsWith('https://')
+        ? path
+        : `${baseUrl}${cleanPath}`;
+      const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost';
+      const urlObj = new URL(rawUrl, origin);
+      urlObj.searchParams.sort();
+      return urlObj.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  private getDedupeKey(canonicalUrl: string, options: RequestInit): string | null {
+    // Only GET requests without bodies can be safely deduplicated
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' || options.body !== undefined) {
+      return null;
+    }
+
+    // Determine effective authorization header
+    let authHeader = '';
+    if (options.headers) {
+      const headers = new Headers(options.headers);
+      if (headers.has('Authorization')) {
+        authHeader = headers.get('Authorization') || '';
+      }
+    }
+    if (!authHeader && this.accessToken) {
+      authHeader = `Bearer ${this.accessToken}`;
+    }
+
+    // Normalize relevant response-affecting headers (excluding transient X-Request-ID)
+    const normalizedHeaders: string[] = [];
+    if (options.headers) {
+      const headers = new Headers(options.headers);
+      const keys: string[] = [];
+      headers.forEach((_, key) => {
+        const lower = key.toLowerCase();
+        if (lower !== 'x-request-id' && lower !== 'authorization') {
+          keys.push(lower);
+        }
+      });
+      keys.sort();
+      for (const k of keys) {
+        normalizedHeaders.push(`${k}:${headers.get(k)}`);
+      }
+    }
+
+    const credentials = options.credentials || 'include';
+    const authHash = authHeader ? safeHash(authHeader) : 'anon';
+    const headersHash = normalizedHeaders.length > 0 ? safeHash(normalizedHeaders.join(';')) : 'none';
+
+    return `${canonicalUrl}#auth=${authHash}#cred=${credentials}#hdr=${headersHash}`;
+  }
+
+  private cloneResponse<T>(data: T): T {
+    if (data === null || typeof data !== 'object') {
+      return data;
+    }
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(data);
+      } catch {
+        // Fallback if not cloneable by structuredClone
+      }
+    }
+    try {
+      return JSON.parse(JSON.stringify(data));
+    } catch {
+      return data;
+    }
+  }
+
   public async request<T = unknown>(
     path: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const isGet = !options.method || options.method.toUpperCase() === 'GET';
-    const dedupeKey = isGet ? `${path}__${this.accessToken || 'anon'}` : null;
+    const canonicalUrl = this.getCanonicalUrl(path);
+    const dedupeKey = canonicalUrl ? this.getDedupeKey(canonicalUrl, options) : null;
 
-    if (dedupeKey && this.inFlightGetRequests.has(dedupeKey)) {
-      return this.inFlightGetRequests.get(dedupeKey) as Promise<T>;
-    }
-
-    const execPromise = this.executeRequest<T>(path, options);
-
+    let sharedPromise: Promise<T> | undefined;
     if (dedupeKey) {
-      this.inFlightGetRequests.set(dedupeKey, execPromise);
+      sharedPromise = this.inFlightGetRequests.get(dedupeKey) as Promise<T> | undefined;
     }
 
-    try {
-      return await execPromise;
-    } finally {
+    if (!sharedPromise) {
+      // Create options copy without individual caller's signal so shared network fetch isn't cancelled
+      const { signal: _, ...sharedFetchOptions } = options;
+      const underlyingPromise = this.executeRequest<T>(path, sharedFetchOptions);
+
       if (dedupeKey) {
-        this.inFlightGetRequests.delete(dedupeKey);
+        sharedPromise = underlyingPromise;
+        this.inFlightGetRequests.set(dedupeKey, sharedPromise);
+
+        // Safe cleanup: only delete if the map entry still points to this exact promise
+        underlyingPromise
+          .finally(() => {
+            if (this.inFlightGetRequests.get(dedupeKey) === sharedPromise) {
+              this.inFlightGetRequests.delete(dedupeKey);
+            }
+          })
+          .catch(() => {
+            // Suppress uncaught rejection on the cleanup handler
+          });
+      } else {
+        sharedPromise = underlyingPromise;
       }
     }
+
+    // Isolate caller's AbortSignal: if this specific caller aborts, reject their promise
+    // without aborting the underlying shared promise for other concurrent callers.
+    let callerPromise: Promise<T>;
+    if (options.signal) {
+      const signal = options.signal;
+      if (signal.aborted) {
+        throw new DOMException('The user aborted a request.', 'AbortError');
+      }
+
+      callerPromise = new Promise<T>((resolve, reject) => {
+        const onAbort = () => {
+          signal.removeEventListener('abort', onAbort);
+          reject(new DOMException('The user aborted a request.', 'AbortError'));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+
+        sharedPromise!.then(
+          (res) => {
+            signal.removeEventListener('abort', onAbort);
+            resolve(res);
+          },
+          (err) => {
+            signal.removeEventListener('abort', onAbort);
+            reject(err);
+          },
+        );
+      });
+    } else {
+      callerPromise = sharedPromise;
+    }
+
+    const result = await callerPromise;
+    // Return isolated clone so downstream mutation by one caller does not corrupt others
+    return this.cloneResponse(result);
   }
 
   private async executeRequest<T = unknown>(

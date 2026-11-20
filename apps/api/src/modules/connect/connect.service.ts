@@ -517,48 +517,30 @@ export class ConnectService {
       take: 100,
     });
 
-    // 5. Compute compatibility for each candidate
-    const callerData: CandidateCompatibilityInput = callerFlatmate
-      ? {
-          country: callerFlatmate.country,
-          state: callerFlatmate.state,
-          city: callerFlatmate.city,
-          targetLocalities: callerFlatmate.targetLocalities,
-          budgetMin: callerFlatmate.budgetMin ? Number(callerFlatmate.budgetMin) : 0,
-          budgetMax: Number(callerFlatmate.budgetMax),
-          moveInDate: callerFlatmate.moveInDate,
-          moveInFlexible: callerFlatmate.moveInFlexible,
-          foodHabit: callerFlatmate.foodHabit,
-          sleepRoutine: callerFlatmate.sleepRoutine,
-          cleanliness: callerFlatmate.cleanliness,
-          smoking: callerFlatmate.smoking,
-          drinking: callerFlatmate.drinking,
-          petFriendly: callerFlatmate.petFriendly,
-          socialLifestyle: callerFlatmate.socialLifestyle,
-          wfhHabits: callerFlatmate.wfhHabits,
-          interests: callerFlatmate.interests,
-        }
-      : {
-          country: 'India',
-          state: 'Haryana',
-          city: 'Gurugram',
-          targetLocalities: [],
-          budgetMin: 0,
-          budgetMax: 15000,
-          moveInDate: null,
-          moveInFlexible: true,
-          foodHabit: 'Vegetarian',
-          sleepRoutine: 'Flexible',
-          cleanliness: 'Moderate',
-          smoking: 'No',
-          drinking: 'Prefer not to say',
-          petFriendly: false,
-          socialLifestyle: 'Moderate',
-          wfhHabits: 'Hybrid',
-          interests: [],
-        };
-
+    // 5. Build caller compatibility input only if caller possesses an active, published profile
     const isCallerProfileReady = !!(callerFlatmate && callerFlatmate.isPublished);
+
+    const callerData: CandidateCompatibilityInput | null = isCallerProfileReady
+      ? {
+          country: callerFlatmate!.country,
+          state: callerFlatmate!.state,
+          city: callerFlatmate!.city,
+          targetLocalities: callerFlatmate!.targetLocalities,
+          budgetMin: callerFlatmate!.budgetMin ? Number(callerFlatmate!.budgetMin) : 0,
+          budgetMax: Number(callerFlatmate!.budgetMax),
+          moveInDate: callerFlatmate!.moveInDate,
+          moveInFlexible: callerFlatmate!.moveInFlexible,
+          foodHabit: callerFlatmate!.foodHabit,
+          sleepRoutine: callerFlatmate!.sleepRoutine,
+          cleanliness: callerFlatmate!.cleanliness,
+          smoking: callerFlatmate!.smoking,
+          drinking: callerFlatmate!.drinking,
+          petFriendly: callerFlatmate!.petFriendly,
+          socialLifestyle: callerFlatmate!.socialLifestyle,
+          wfhHabits: callerFlatmate!.wfhHabits,
+          interests: callerFlatmate!.interests,
+        }
+      : null;
 
     const results: ConnectCandidateView[] = candidateProfiles.map((item) => {
       const candidateData: CandidateCompatibilityInput = {
@@ -581,13 +563,39 @@ export class ConnectService {
         interests: item.interests,
       };
 
-      const rawCompatibility = computeDetailedCompatibility(callerData, candidateData, customWeights);
+      let compatibility: CompatibilityBreakdown;
 
-      // If caller has not published a profile, mark score availability accordingly
-      const compatibility: CompatibilityBreakdown = {
-        ...rawCompatibility,
-        scoreAvailable: isCallerProfileReady,
-      };
+      if (callerData) {
+        // Genuine compatibility computation from caller's published profile
+        compatibility = computeDetailedCompatibility(callerData, candidateData, customWeights);
+      } else {
+        // Honest unavailable state — zero fabricated preferences or scores
+        compatibility = {
+          overallScore: 0,
+          scoreAvailable: false,
+          budgetScore: 0,
+          locationScore: 0,
+          lifestyleScore: 0,
+          foodScore: 0,
+          sleepScore: 0,
+          cleanlinessScore: 0,
+          moveInScore: 0,
+          interestsScore: 0,
+          sharedInterests: [],
+          explanations: [
+            'Publish your flatmate profile to calculate personalized compatibility scores',
+          ],
+          dimensions: {
+            budget: { score: 0, maxScore: 20, percentage: 0, explanation: 'Profile required' },
+            location: { score: 0, maxScore: 20, percentage: 0, explanation: 'Profile required' },
+            lifestyle: { score: 0, maxScore: 15, percentage: 0, explanation: 'Profile required' },
+            food: { score: 0, maxScore: 15, percentage: 0, explanation: 'Profile required' },
+            sleep: { score: 0, maxScore: 10, percentage: 0, explanation: 'Profile required' },
+            moveIn: { score: 0, maxScore: 10, percentage: 0, explanation: 'Profile required' },
+            interests: { score: 0, maxScore: 10, percentage: 0, explanation: 'Profile required' },
+          },
+        };
+      }
 
       // Extract first name or display name
       const displayName = item.profile.fullName

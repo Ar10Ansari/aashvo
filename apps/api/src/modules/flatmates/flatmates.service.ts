@@ -141,12 +141,19 @@ export class FlatmatesService {
     this.searchCache.clear();
   }
 
+  private getSearchCacheKey(query: SearchFlatmatesQueryDto): string {
+    const entries = Object.entries(query)
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      .sort(([a], [b]) => a.localeCompare(b));
+    return JSON.stringify(entries);
+  }
+
   private toView(
     item: FlatmateWithUser,
     callerProfile?: FlatmateProfile | null,
   ): FlatmateProfileResponseDto {
     let compatibilityScore: number | undefined;
-    if (callerProfile && callerProfile.id !== item.id) {
+    if (callerProfile && callerProfile.isPublished && callerProfile.id !== item.id) {
       compatibilityScore = calculateCompatibilityScore(
         {
           foodHabit: callerProfile.foodHabit,
@@ -432,11 +439,11 @@ export class FlatmatesService {
     callerUserId?: string,
   ): Promise<PaginatedFlatmatesResponseDto> {
     const isAnonymous = !callerUserId;
-    const cacheKey = isAnonymous ? JSON.stringify(query) : null;
+    const cacheKey = isAnonymous ? this.getSearchCacheKey(query) : null;
     if (cacheKey) {
       const cached = this.searchCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
-        return cached.data;
+        return JSON.parse(JSON.stringify(cached.data));
       }
     }
 
@@ -444,7 +451,28 @@ export class FlatmatesService {
     const limit = Math.min(50, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
 
+    let excludedUserIds: string[] = [];
+    if (callerUserId) {
+      const blocks = await this.prisma.userBlock.findMany({
+        where: {
+          OR: [{ blockerId: callerUserId }, { blockedId: callerUserId }],
+        },
+        select: { blockerId: true, blockedId: true },
+      });
+      const blockedIds = blocks.map((b) => (b.blockerId === callerUserId ? b.blockedId : b.blockerId));
+      excludedUserIds = Array.from(new Set([callerUserId, ...blockedIds]));
+    }
+
     const where: Prisma.FlatmateProfileWhereInput = {
+      isPublished: true,
+      discoveryHidden: false,
+      profile: {
+        user: {
+          accountStatus: 'active',
+          deletedAt: null,
+        },
+      },
+      ...(excludedUserIds.length > 0 ? { userId: { notIn: excludedUserIds } } : {}),
       ...(query.city ? { city: { equals: query.city, mode: 'insensitive' } } : {}),
       ...(query.locality ? { targetLocalities: { has: query.locality } } : {}),
       ...(query.gender ? { gender: { equals: query.gender, mode: 'insensitive' } } : {}),
@@ -503,7 +531,10 @@ export class FlatmatesService {
         const oldestKey = this.searchCache.keys().next().value;
         if (oldestKey) this.searchCache.delete(oldestKey);
       }
-      this.searchCache.set(cacheKey, { data: result, expiresAt: Date.now() + 30000 });
+      this.searchCache.set(cacheKey, {
+        data: JSON.parse(JSON.stringify(result)),
+        expiresAt: Date.now() + 15000,
+      });
     }
 
     return result;
