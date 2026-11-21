@@ -16,12 +16,20 @@ export default defineConfig({
     headless: true,
     viewport: { width: 1280, height: 720 },
   },
-  webServer: {
-    command: 'npm run preview -- --port 4173',
-    port: 4173,
-    reuseExistingServer: true,
-    timeout: 30 * 1000,
-  },
+  webServer: [
+    {
+      command: 'node apps/api/start-e2e-server.js',
+      port: 4000,
+      reuseExistingServer: true,
+      timeout: 30 * 1000,
+    },
+    {
+      command: 'npm run preview -- --port 4173',
+      port: 4173,
+      reuseExistingServer: true,
+      timeout: 30 * 1000,
+    },
+  ],
   projects: [
     {
       name: 'desktop-chrome',

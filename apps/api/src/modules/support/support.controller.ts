@@ -143,3 +143,24 @@ export class SupportController {
   }
 }
 
+@ApiTags('Safety Reports & Moderation Flags')
+@Controller('api/v1/support/reports')
+export class SafetyReportsController {
+  constructor(private readonly supportService: SupportService) {}
+
+  @Public()
+  @Post()
+  @ApiOperation({ summary: 'Submit a safety or listing violation report (Canonical route)' })
+  @ApiResponse({ status: 201, description: 'Safety report submitted successfully' })
+  async submitReport(
+    @CurrentUser() user: AuthenticatedUser | null,
+    @Body() dto: CreateSafetyReportDto,
+    @Req() req: RequestWithId,
+  ): Promise<{ success: boolean; id: string; message: string }> {
+    return this.supportService.submitSafetyReport(user?.id || null, dto, {
+      ipAddress: req.ip,
+      requestId: req.requestId,
+    });
+  }
+}
+

@@ -25,6 +25,15 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
+    },
+  },
   // @ts-expect-error vitest config extension
   test: {
     globals: true,

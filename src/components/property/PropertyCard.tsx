@@ -43,8 +43,10 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSelect }
         setIsSaved(true);
         if (showToast) showToast('Saved to shortlist!');
       }
-    } catch {
-      setIsSaved(!isSaved);
+    } catch (err: unknown) {
+      if (showToast) {
+        showToast(err instanceof Error ? err.message : 'Failed to update saved status.');
+      }
     }
   };
 
