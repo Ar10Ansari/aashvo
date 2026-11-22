@@ -57,7 +57,9 @@ import {
 import {
   ensureUserProfileExists,
   parseOAuthErrorFromUrl,
+  signOutWithBackend,
 } from '../services/authService';
+import { apiClient } from '../services/apiClient';
 import { marketplaceProfileService } from '../services/marketplaceProfileService';
 import type {
   MarketplaceProfileType,
@@ -919,6 +921,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadPublicMarketplaceData();
   }, []);
 
+  // Hydrate authenticated user session from backend on mount/refresh
+  useEffect(() => {
+    if (apiClient.getAccessToken()) {
+      apiClient.get<{
+        id: string;
+        email: string;
+        fullName?: string;
+        role?: string;
+        emailVerified?: boolean;
+        phoneVerified?: boolean;
+        accountStatus?: string;
+      }>('/profiles/me')
+        .then((profile) => {
+          if (profile && profile.id) {
+            const restoredUser: User = {
+              id: profile.id,
+              name: profile.fullName || profile.email.split('@')[0],
+              email: profile.email,
+              role: (profile.role as User['role']) || 'renter',
+              emailVerified: profile.emailVerified ?? false,
+              phoneVerified: profile.phoneVerified ?? false,
+              accountStatus: profile.accountStatus === 'active' ? 'active' : 'suspended',
+              authProvider: 'email',
+            };
+            setCurrentUser(restoredUser);
+            localStorage.setItem('aashvo_current_user', JSON.stringify(restoredUser));
+          }
+        })
+        .catch(() => {
+          // Token expired, clear invalid session
+          apiClient.setAccessToken(null);
+          setCurrentUser(null);
+          localStorage.removeItem('aashvo_current_user');
+        });
+    }
+  }, []);
+
   // Hydrate user support tickets, or full admin moderation queues when verified staff signs in
   useEffect(() => {
     if (!isLiveBackendConfigured || !supabase || !currentUser || currentUser.isDemo) return;
@@ -1017,6 +1056,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isLiveBackendConfigured && supabase) {
       supabase.auth.signOut().catch(() => {});
     }
+    signOutWithBackend().catch(() => {});
+    apiClient.setAccessToken(null);
     setCurrentUser(null);
     localStorage.removeItem('aashvo_current_user');
     showToast('Signed out successfully');
