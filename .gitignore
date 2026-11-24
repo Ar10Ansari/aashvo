@@ -71,11 +71,13 @@ web_modules/
 
 # dotenv environment variable files
 .env
+.env.*
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
 !.env.example
+!.env*.example
 
 # Stores VSCode versions used for testing
 .vscode-test
