@@ -441,7 +441,7 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#F5F3ED] border-b border-charcoal-200/50 px-4 pt-2 pb-6 space-y-3">
+        <div id="mobile-menu-drawer" className="md:hidden bg-[#F5F3ED] border-b border-charcoal-200/50 px-4 pt-2 pb-6 space-y-3">
           <div className="grid grid-cols-2 gap-2 pt-2">
             <button
               onClick={() => {

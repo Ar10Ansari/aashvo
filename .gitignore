@@ -110,3 +110,7 @@ opencode.jsonc
 # Playwright
 test-results/
 playwright-report/
+
+# Scratch & local testing artifacts
+scratch/
+

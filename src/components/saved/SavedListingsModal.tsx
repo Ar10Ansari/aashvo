@@ -115,6 +115,7 @@ export const SavedListingsModal: React.FC<SavedListingsModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close saved modal"
             className="p-2 rounded-full text-charcoal-400 hover:text-charcoal-700 hover:bg-charcoal-100 transition-colors"
           >
             <X className="w-5 h-5" />
