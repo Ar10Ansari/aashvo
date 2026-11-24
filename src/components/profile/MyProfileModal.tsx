@@ -140,7 +140,7 @@ export const MyProfileModal: React.FC<MyProfileModalProps> = ({
         </div>
 
         {/* Tab Controls */}
-        <div className="bg-ivory-200 px-5 sm:px-7 py-2.5 border-b border-charcoal-200/60 flex items-center space-x-2">
+        <div className="bg-ivory-200 px-4 sm:px-7 py-2 border-b border-charcoal-200/60 flex items-center space-x-2 overflow-x-auto no-scrollbar">
           {[
             { id: 'overview', label: 'Overview & Checklist', icon: User },
             { id: 'personas', label: 'Marketplace Personas', icon: Layers },

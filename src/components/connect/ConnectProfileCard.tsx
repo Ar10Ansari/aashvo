@@ -68,6 +68,8 @@ export const ConnectProfileCard: React.FC<ConnectProfileCardProps> = ({
           <img
             src={candidate.avatarUrl}
             alt={candidate.displayName}
+            loading={isTop ? 'eager' : 'lazy'}
+            decoding="async"
             className="w-full h-full object-cover object-center pointer-events-none"
           />
         ) : (
