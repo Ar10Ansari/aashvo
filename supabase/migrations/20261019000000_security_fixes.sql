@@ -73,6 +73,7 @@ EXECUTE FUNCTION public.enforce_property_moderation_integrity();
 -- 4. PRIVATE CONTACT PROTECTION & PHONE MASKING
 -- Restrict direct SELECT on public.profiles to own record or admin; provide safe public view
 DROP POLICY IF EXISTS "Public profiles are readable by authenticated users" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view only own private profile or admins can view all" ON public.profiles;
 CREATE POLICY "Users can view only own private profile or admins can view all"
 ON public.profiles FOR SELECT
 TO authenticated
