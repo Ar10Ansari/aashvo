@@ -176,6 +176,7 @@ $$;
 -- --------------------------------------------------------------------
 
 -- 1. Insert: Both authenticated and anonymous users can create tickets
+DROP POLICY IF EXISTS "Anyone can create a support ticket" ON public.support_tickets;
 CREATE POLICY "Anyone can create a support ticket"
 ON public.support_tickets FOR INSERT
 WITH CHECK (
@@ -185,6 +186,7 @@ WITH CHECK (
 );
 
 -- 2. Select: Ticket owners can read their own tickets
+DROP POLICY IF EXISTS "Users can view their own support tickets" ON public.support_tickets;
 CREATE POLICY "Users can view their own support tickets"
 ON public.support_tickets FOR SELECT
 USING (
@@ -193,6 +195,7 @@ USING (
 );
 
 -- 3. Update: Strictly restricted to support admins
+DROP POLICY IF EXISTS "Only admins can update support tickets" ON public.support_tickets;
 CREATE POLICY "Only admins can update support tickets"
 ON public.support_tickets FOR UPDATE
 USING (public.is_support_admin())
@@ -203,6 +206,7 @@ WITH CHECK (public.is_support_admin());
 -- --------------------------------------------------------------------
 
 -- 1. Select: Ticket owners can view non-internal messages; admins can view all
+DROP POLICY IF EXISTS "Users can view public messages on their tickets" ON public.ticket_messages;
 CREATE POLICY "Users can view public messages on their tickets"
 ON public.ticket_messages FOR SELECT
 USING (
@@ -216,6 +220,7 @@ USING (
 );
 
 -- 2. Insert: Ticket owners can send public messages; admins can send public and internal messages
+DROP POLICY IF EXISTS "Users and admins can add messages to tickets" ON public.ticket_messages;
 CREATE POLICY "Users and admins can add messages to tickets"
 ON public.ticket_messages FOR INSERT
 WITH CHECK (
@@ -234,10 +239,12 @@ WITH CHECK (
 -- --------------------------------------------------------------------
 
 -- Audit events are strictly accessible and writable only by authorized admins
+DROP POLICY IF EXISTS "Audit events strictly visible to admins" ON public.ticket_audit_events;
 CREATE POLICY "Audit events strictly visible to admins"
 ON public.ticket_audit_events FOR SELECT
 USING (public.is_support_admin());
 
+DROP POLICY IF EXISTS "Audit events strictly insertable by admins" ON public.ticket_audit_events;
 CREATE POLICY "Audit events strictly insertable by admins"
 ON public.ticket_audit_events FOR INSERT
 WITH CHECK (public.is_support_admin());
@@ -247,6 +254,7 @@ WITH CHECK (public.is_support_admin());
 -- --------------------------------------------------------------------
 
 -- 1. Insert: Authenticated or guest users can submit safety reports
+DROP POLICY IF EXISTS "Anyone can submit a safety report" ON public.safety_reports;
 CREATE POLICY "Anyone can submit a safety report"
 ON public.safety_reports FOR INSERT
 WITH CHECK (
@@ -256,10 +264,12 @@ WITH CHECK (
 );
 
 -- 2. Select & Update: Strictly restricted to admins (reported hosts cannot see reports)
+DROP POLICY IF EXISTS "Safety reports visible only to admins" ON public.safety_reports;
 CREATE POLICY "Safety reports visible only to admins"
 ON public.safety_reports FOR SELECT
 USING (public.is_support_admin());
 
+DROP POLICY IF EXISTS "Safety reports modifiable only by admins" ON public.safety_reports;
 CREATE POLICY "Safety reports modifiable only by admins"
 ON public.safety_reports FOR UPDATE
 USING (public.is_support_admin())
@@ -284,6 +294,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Storage Access Policies:
 -- Upload: Authenticated users can upload evidence to their own folder
+DROP POLICY IF EXISTS "Users can upload support attachments" ON storage.objects;
 CREATE POLICY "Users can upload support attachments"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -293,6 +304,7 @@ WITH CHECK (
 );
 
 -- Download: Ticket owner and admins can download attachments
+DROP POLICY IF EXISTS "Users and admins can download support attachments" ON storage.objects;
 CREATE POLICY "Users and admins can download support attachments"
 ON storage.objects FOR SELECT
 TO authenticated
