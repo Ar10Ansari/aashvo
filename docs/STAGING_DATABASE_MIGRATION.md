@@ -25,7 +25,7 @@ All schema changes in AASHVO are managed as versioned, immutable SQL migrations 
 
 Before executing any migration command against the staging database:
 
-1. [ ] **Verify Target Branch:** Confirm active Git branch is `infra/neon-staging` or `staging/mvp-fasttrack-candidate`. Never run staging migrations from `master`.
+1. [ ] **Verify Target Branch:** Confirm active Git branch is `infra/neon-staging`. Never run staging migrations from `master`.
 2. [ ] **Verify Target Hostname:** Ensure `DIRECT_URL` points to `ep-snowy-hall-bi49p4m9.c-5.ap-southeast-1.aws.neon.tech` (AWS Singapore).
 3. [ ] **Verify Database Name:** Ensure path is `/aashvo_staging`.
 4. [ ] **Verify Unpooled Endpoint:** DDL commands must NEVER run through a connection pooler port (`DIRECT_URL` must connect directly to PostgreSQL compute).

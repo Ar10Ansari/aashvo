@@ -4,7 +4,7 @@
 **Date:** November 24, 2026  
 **Repository:** `D:\Projects\AASHVO`  
 **GitHub:** `https://github.com/Ar10Ansari/aashvo`  
-**Integration Branch:** `staging/mvp-fasttrack-candidate`  
+**Integration Branch:** `infra/neon-staging`  
 **Final Commit:** Verified Clean Git State  
 **Final Verdict:** **READY WITH OWNER ACTIONS REQUIRED** (Staging Software Complete with Storage Restricted)
 

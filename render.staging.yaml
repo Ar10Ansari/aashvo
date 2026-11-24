@@ -13,7 +13,7 @@ services:
     region: singapore
     branch: infra/neon-staging
     buildCommand: npm ci --include=dev && npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
-    preDeployCommand: npm --workspace=apps/api exec prisma migrate deploy
+    preDeployCommand: node apps/api/test/verify-and-migrate-neon.cjs deploy
     startCommand: npm --workspace=apps/api run start
     healthCheckPath: /api/v1/health/live
     autoDeploy: true

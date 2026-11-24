@@ -44,7 +44,7 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
   afterAll(async () => {
     if (prisma) {
       try {
-        // Guaranteed cleanup of any remaining synthetic test entities
+        // Guaranteed cleanup of any remaining synthetic test entities - fail visibly if cleanup fails
         if (createdUserIds.length > 0) {
           await prisma.auditLog.deleteMany({
             where: { actorId: { in: createdUserIds } },
@@ -55,9 +55,8 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
           await prisma.user.deleteMany({
             where: { id: { in: createdUserIds } },
           });
+          createdUserIds.length = 0;
         }
-      } catch (cleanupErr) {
-        console.warn('Warning: afterAll synthetic cleanup encountered an error:', cleanupErr);
       } finally {
         await prisma.$disconnect();
       }
@@ -251,21 +250,21 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
         expect(auditLog.actorId).toBe(testUserId);
         expect(auditLog.eventType).toBe('STAGING_VERIFICATION_TEST');
       } finally {
-        // Guaranteed cleanup in finally block
+        // Explicit, non-swallowed cleanup in finally block
         if (testUserId) {
           await prisma.auditLog.deleteMany({
             where: { actorId: testUserId },
-          }).catch(() => {});
+          });
 
           await prisma.profile.deleteMany({
             where: { id: testUserId },
-          }).catch(() => {});
+          });
 
           await prisma.user.delete({
             where: { id: testUserId },
-          }).catch(() => {});
+          });
 
-          // Remove from tracking array once deleted
+          // Remove from tracking array once verified deleted
           const idx = createdUserIds.indexOf(testUserId);
           if (idx !== -1) {
             createdUserIds.splice(idx, 1);
@@ -278,6 +277,35 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
         where: { id: testUserId },
       });
       expect(verifyDeleted).toBeNull();
+    });
+
+    it('verifies synthetic test records are completely absent from database after execution', async () => {
+      // 1. Assert specific test user ID is deleted
+      if (testUserId) {
+        const userCheck = await prisma.user.findUnique({
+          where: { id: testUserId },
+        });
+        expect(userCheck).toBeNull();
+
+        const profileCheck = await prisma.profile.findUnique({
+          where: { id: testUserId },
+        });
+        expect(profileCheck).toBeNull();
+
+        const auditCheck = await prisma.auditLog.findMany({
+          where: { actorId: testUserId },
+        });
+        expect(auditCheck).toHaveLength(0);
+      }
+
+      // 2. Assert zero orphan synthetic test records exist with QA prefix
+      const syntheticUsers = await prisma.user.findMany({
+        where: { email: { contains: 'qa.synthetic' } },
+      });
+      expect(syntheticUsers).toHaveLength(0);
+
+      // 3. Assert createdUserIds tracking array is completely drained
+      expect(createdUserIds).toHaveLength(0);
     });
   });
 });

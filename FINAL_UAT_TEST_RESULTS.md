@@ -3,7 +3,7 @@
 **Author:** AASHVO CTO & Independent Senior QA Lead  
 **Date:** November 24, 2026  
 **Repository:** `D:\Projects\AASHVO`  
-**GitHub Branch:** `staging/mvp-fasttrack-candidate`  
+**GitHub Branch:** `infra/neon-staging`  
 **Test Suite Coverage:** 26/26 Consolidated Playwright Browser E2E, 307/307 Vitest Unit/Integration, 26/26 Jest Backend Database Tests  
 **Overall UAT Verdict:** **PASSED — VERIFIED AGAINST REAL BROWSER DOM & DATABASE STATE**
 
@@ -226,4 +226,4 @@ Vite Production Build:                 Exit Code 0 (Dist clean, chunks optimized
 
 ## 4. Overall UAT Verdict
 
-All 11 core user journeys have been fully tested and verified against the software deployed in `staging/mvp-fasttrack-candidate`. The application exhibits zero critical workflow defects, zero security bypass vulnerabilities, and full responsive stability.
+All 11 core user journeys have been fully tested and verified against the software integrated in `infra/neon-staging`. The application exhibits zero critical workflow defects, zero security bypass vulnerabilities, and full responsive stability.

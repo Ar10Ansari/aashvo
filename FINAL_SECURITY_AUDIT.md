@@ -2,7 +2,7 @@
 
 **Author:** AASHVO CTO & Application Security Architect  
 **Date:** November 24, 2026  
-**Integration Branch:** `staging/mvp-fasttrack-candidate`  
+**Integration Branch:** `infra/neon-staging`  
 **Security Certification Level:** Banking-Grade Web Application Standard  
 **Verdict:** **PASSED & SECURITY CONTROLS CERTIFIED**
 

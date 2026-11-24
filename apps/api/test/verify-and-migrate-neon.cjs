@@ -20,32 +20,54 @@ if (!VALID_ACTIONS.has(action)) {
   process.exit(1);
 }
 
-// 2. Load and parse .env.neon configuration
+// 2. Load configuration from explicitly intended staging secret configuration
+// Fail closed against arbitrary inherited process environments
 const envPath = path.resolve(__dirname, '../.env.neon');
-if (!fs.existsSync(envPath)) {
-  console.error(`FATAL: Staging environment file not found at: ${envPath}`);
-  process.exit(1);
-}
+let directUrl;
+let databaseUrl;
+let configSource;
 
-const fileContent = fs.readFileSync(envPath, 'utf8');
-const fileEnv = {};
-for (const line of fileContent.split('\n')) {
-  const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-  if (match) {
-    let val = (match[2] || '').trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1);
+if (fs.existsSync(envPath)) {
+  configSource = `explicit staging file (${envPath})`;
+  const fileContent = fs.readFileSync(envPath, 'utf8');
+  const fileEnv = {};
+  for (const line of fileContent.split('\n')) {
+    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+    if (match) {
+      let val = (match[2] || '').trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      fileEnv[match[1]] = val;
     }
-    fileEnv[match[1]] = val;
   }
+
+  directUrl = fileEnv.DIRECT_URL;
+  databaseUrl = fileEnv.DATABASE_URL;
+
+  // Detect and log if ambient process environment had divergent database URLs
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL !== databaseUrl) {
+    console.warn('[SAFETY AUDIT] Ambient process.env.DATABASE_URL differs from .env.neon. Blocking ambient override; enforcing staging file target.');
+  }
+  if (process.env.DIRECT_URL && process.env.DIRECT_URL !== directUrl) {
+    console.warn('[SAFETY AUDIT] Ambient process.env.DIRECT_URL differs from .env.neon. Blocking ambient override; enforcing staging file target.');
+  }
+} else {
+  // Hosted / CI container execution (e.g. Render staging service)
+  // Strictly require NODE_ENV=staging to prevent execution in production or unconfigured environments
+  if (process.env.NODE_ENV !== 'staging') {
+    console.error(`FATAL: .env.neon not found and NODE_ENV is "${process.env.NODE_ENV}". Refusing to run migrations without explicit staging environment.`);
+    process.exit(1);
+  }
+
+  configSource = 'Render staging environment (NODE_ENV=staging)';
+  directUrl = process.env.DIRECT_URL;
+  databaseUrl = process.env.DATABASE_URL;
 }
 
 // Fail closed on missing parameters
-const directUrl = fileEnv.DIRECT_URL;
-const databaseUrl = fileEnv.DATABASE_URL;
-
 if (!directUrl || !databaseUrl) {
-  console.error('FATAL: Both DIRECT_URL and DATABASE_URL must be defined in .env.neon');
+  console.error(`FATAL: Both DIRECT_URL and DATABASE_URL must be defined in ${configSource}`);
   process.exit(1);
 }
 
@@ -87,23 +109,27 @@ function validateStagingUrl(urlString, label, expectedHost) {
 }
 
 console.log('--- SAFETY GATE CHECK ---');
+console.log('Configuration Source:', configSource);
 const parsedDirect = validateStagingUrl(directUrl, 'DIRECT_URL', AUTHORIZED_DIRECT_HOST);
 const parsedPooled = validateStagingUrl(databaseUrl, 'DATABASE_URL', AUTHORIZED_POOLED_HOST);
 
-console.log('Target Protocol:  ', parsedDirect.protocol);
-console.log('Direct Compute:   ', parsedDirect.hostname);
-console.log('Pooled Compute:   ', parsedPooled.hostname);
-console.log('Target Database:  ', parsedDirect.pathname);
-console.log('Database Role:    ', parsedDirect.username);
+console.log('Target Protocol:     ', parsedDirect.protocol);
+console.log('Direct Compute Host: ', parsedDirect.hostname);
+console.log('Pooled Compute Host: ', parsedPooled.hostname);
+console.log('Target Database:     ', parsedDirect.pathname);
+console.log('Database Role:       ', parsedDirect.username);
 console.log('SAFETY AUDIT: All parameters verified against authorized Neon staging.');
 console.log('-------------------------');
 
-// 4. Prevent process environment variables from silently overriding staging target
+// 4. Construct sanitized environment preventing any silent redirection
+// Clone essential system environment, but enforce validated staging parameters
+// Set PRISMA_DISABLE_DOTENV=1 to prevent Prisma CLI from auto-loading unverified local .env files
 const cleanEnv = {
   ...process.env,
-  ...fileEnv,
   DIRECT_URL: directUrl,
   DATABASE_URL: databaseUrl,
+  NODE_ENV: 'staging',
+  PRISMA_DISABLE_DOTENV: '1',
 };
 
 // Re-verify that execution environment carries the exact validated URLs
@@ -112,8 +138,10 @@ if (cleanEnv.DIRECT_URL !== directUrl || cleanEnv.DATABASE_URL !== databaseUrl) 
   process.exit(1);
 }
 
-// 5. Execute approved action
+// 5. Execute approved action with Prisma CLI
 const prismaSchema = path.resolve(__dirname, '../prisma/schema.prisma');
+const workingDir = path.resolve(__dirname, '..');
+
 if (!fs.existsSync(prismaSchema)) {
   console.error(`FATAL: Prisma schema not found at: ${prismaSchema}`);
   process.exit(1);
@@ -122,17 +150,17 @@ if (!fs.existsSync(prismaSchema)) {
 if (action === 'status') {
   console.log('Executing safe Prisma migration status check on Neon staging...');
   const out = execSync(`npx prisma migrate status --schema="${prismaSchema}"`, {
-    cwd: path.resolve(__dirname, '..'),
+    cwd: workingDir,
     env: cleanEnv,
-    encoding: 'utf8'
+    encoding: 'utf8',
   });
   console.log(out);
 } else if (action === 'deploy') {
   console.log('Executing safe Prisma migration deploy on Neon staging...');
   const out = execSync(`npx prisma migrate deploy --schema="${prismaSchema}"`, {
-    cwd: path.resolve(__dirname, '..'),
+    cwd: workingDir,
     env: cleanEnv,
-    encoding: 'utf8'
+    encoding: 'utf8',
   });
   console.log(out);
 }

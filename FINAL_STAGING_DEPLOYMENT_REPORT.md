@@ -2,7 +2,7 @@
 
 **Author:** AASHVO CTO & DevOps Lead  
 **Date:** November 24, 2026  
-**Integration Branch:** `staging/mvp-fasttrack-candidate`  
+**Integration Branch:** `infra/neon-staging`  
 **Target Environments:** Vercel (Frontend Preview) & Render (Backend API Staging)  
 **Status:** **DEPLOYMENT BLUEPRINT READY — FRONTEND PREVIEW ACTIVE**
 
@@ -28,7 +28,7 @@
 
 ## 2. Dedicated Backend Staging Service (Render Blueprint)
 
-To guarantee that staging traffic and test records never pollute the production database, [render.yaml](file:///d:/Projects/AASHVO/render.yaml) was updated to declare `aashvo-api-staging`:
+To guarantee that staging traffic and test records never pollute the production database, a dedicated blueprint [render.staging.yaml](file:///d:/Projects/AASHVO/render.staging.yaml) was created to declare `aashvo-api-staging`, keeping `render.yaml` 100% production-isolated:
 
 ```yaml
   - type: web
@@ -36,9 +36,10 @@ To guarantee that staging traffic and test records never pollute the production 
     runtime: node
     plan: free
     region: singapore
-    branch: staging/mvp-fasttrack-candidate
+    branch: infra/neon-staging
     buildCommand: npm ci --include=dev && npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
-    startCommand: npm --workspace=apps/api exec prisma migrate deploy && npm --workspace=apps/api run start
+    preDeployCommand: node apps/api/test/verify-and-migrate-neon.cjs deploy
+    startCommand: npm --workspace=apps/api run start
     healthCheckPath: /api/v1/health/live
     autoDeploy: true
     envVars:

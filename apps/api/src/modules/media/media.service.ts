@@ -9,11 +9,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MediaBucket, MediaStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.module';
+import type { AppConfig } from '../../infrastructure/config/env.schema';
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
   ALLOWED_IMAGE_MIME_TYPES,
@@ -59,11 +62,16 @@ function sanitizeFileName(raw: string): string {
 
 @Injectable()
 export class MediaService {
+  private readonly storageProvider: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     @Inject(STORAGE_PORT) private readonly storage: StoragePort,
-  ) {}
+    @Optional() private readonly configService?: ConfigService<AppConfig, true>,
+  ) {
+    this.storageProvider = this.configService?.get('STORAGE_PROVIDER', { infer: true }) || 'local';
+  }
 
   async requestPresignedUpload(
     userId: string,
@@ -124,7 +132,7 @@ export class MediaService {
         sizeBytes: dto.sizeBytes,
         isPublic,
         status: MediaStatus.pending_upload,
-        sourceOrigin: 's3',
+        sourceOrigin: this.storageProvider === 'cloud' ? 's3' : 'local',
       },
     });
 

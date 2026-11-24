@@ -35,7 +35,7 @@ This checklist defines the strict operational gating requirements to promote AAS
 - [ ] **PR Merging Order:**
   - PR #2 (`fix/mobile-responsive-performance-polish`) merged to master.
   - PR #3 (`audit/independent-verification-e2e-expansion`) merged to remediation branch.
-  - Staging candidate (`staging/mvp-fasttrack-candidate`) cleanly rebased or merged into `master`.
+  - Staging candidate (`infra/neon-staging`) validated, verified against Neon staging, and ready for release gate.
 - [ ] **Secrets & Audit Cleanliness:**
   - Zero hardcoded secrets, test credentials, or bypass tokens in commit history (`git log -S bypass`).
   - `.gitignore` verified to exclude `.env*`, `.pem`, `.key`, and local build outputs.

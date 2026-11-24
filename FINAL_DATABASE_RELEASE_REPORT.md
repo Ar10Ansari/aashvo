@@ -2,9 +2,9 @@
 
 **Author:** AASHVO CTO & Principal Database Architect  
 **Date:** November 24, 2026  
-**Integration Branch:** `staging/mvp-fasttrack-candidate`  
-**Engine:** PostgreSQL 16 (Supabase Managed Instance & Prisma ORM)  
-**Status:** **13/13 MIGRATIONS IDEMPOTENT — ZERO DATA DRIFT**
+**Integration Branch:** `infra/neon-staging`  
+**Engine:** PostgreSQL 16 (Dedicated Neon Staging Project & Prisma ORM)  
+**Status:** **7/7 PRISMA MIGRATIONS DEPLOYED & 13/13 SUPABASE MIGRATIONS IDEMPOTENT**
 
 ---
 
