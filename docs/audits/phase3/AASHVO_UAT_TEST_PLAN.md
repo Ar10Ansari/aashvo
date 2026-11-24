@@ -22,7 +22,7 @@ The purpose of this UAT plan is to provide clear, step-by-step test scripts for 
 ## 2. Test Environment Setup & Access
 
 - **Web Application URL:** `https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app`
-- **Automation Bypass URL:** `https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=psAYTdgheJ73qc6oV6AVSfd1DzAaokDK`
+- **Automation Bypass URL:** `https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=<STAGING_ACCESS_TOKEN_PROVIDED_OUT_OF_BAND>`
 - **Supported Browsers:** Google Chrome (v120+), Apple Safari (iOS 16+ / macOS 14+), Mozilla Firefox (v120+).
 - **Supported Mobile Viewports:** Apple iPhone (Safari Mobile) & Android (Chrome Mobile).
 

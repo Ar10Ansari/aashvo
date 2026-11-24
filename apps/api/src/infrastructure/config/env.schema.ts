@@ -148,11 +148,40 @@ const rawEnvSchema = z
     THROTTLE_LIMIT: z.coerce.number().int().min(1).default(120),
     GOOGLE_CLIENT_ID: z.string().trim().optional(),
     GOOGLE_CLIENT_SECRET: z.string().trim().optional(),
+    STORAGE_PROVIDER: z.enum(['local', 'cloud']).default('local'),
+    LOCAL_STORAGE_BASE_DIR: z.string().default('./scratch/storage'),
+    LOCAL_STORAGE_PUBLIC_BASE_URL: z.string().default('http://localhost:4000/assets'),
+    CLOUDFLARE_R2_ACCOUNT_ID: z.string().trim().optional(),
+    CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().trim().optional(),
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().trim().optional(),
+    CLOUDFLARE_R2_BUCKET_NAME: z.string().trim().default('aashvo-public-assets'),
+    CLOUDFLARE_R2_PUBLIC_URL: z.string().trim().default('https://assets.aashvo.in'),
+    AWS_REGION: z.string().trim().default('ap-south-1'),
+    AWS_S3_PRIVATE_BUCKET: z.string().trim().default('aashvo-private-vault'),
+    AWS_ACCESS_KEY_ID: z.string().trim().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().trim().optional(),
   })
   .superRefine((cfg, ctx) => {
     const isHostedEnv = cfg.NODE_ENV === 'production' || cfg.NODE_ENV === 'staging';
     if (!isHostedEnv) {
       return;
+    }
+
+    if (cfg.STORAGE_PROVIDER === 'cloud') {
+      if (!cfg.CLOUDFLARE_R2_ACCOUNT_ID || !cfg.CLOUDFLARE_R2_ACCESS_KEY_ID || !cfg.CLOUDFLARE_R2_SECRET_ACCESS_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CLOUDFLARE_R2_ACCESS_KEY_ID'],
+          message: 'Cloudflare R2 credentials are required when STORAGE_PROVIDER=cloud',
+        });
+      }
+      if (!cfg.AWS_ACCESS_KEY_ID || !cfg.AWS_SECRET_ACCESS_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['AWS_ACCESS_KEY_ID'],
+          message: 'AWS S3 credentials are required when STORAGE_PROVIDER=cloud',
+        });
+      }
     }
 
     if (PLACEHOLDER_MARKER.test(cfg.DATABASE_URL)) {

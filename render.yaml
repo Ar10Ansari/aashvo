@@ -52,3 +52,73 @@ services:
       - key: LOCAL_STORAGE_PUBLIC_BASE_URL
         value: https://aashvo-api.onrender.com/assets
 
+  - type: web
+    name: aashvo-api-staging
+    runtime: node
+    plan: free
+    region: singapore
+    branch: staging/mvp-fasttrack-candidate
+    buildCommand: npm ci --include=dev && npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
+    startCommand: npm --workspace=apps/api exec prisma migrate deploy && npm --workspace=apps/api run start
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: ENABLE_SWAGGER
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SIGNING_PRIVATE_KEY
+        sync: false
+      - key: JWT_SIGNING_PUBLIC_KEY
+        sync: false
+      - key: JWT_ISSUER
+        value: https://api.staging.aashvo.in
+      - key: JWT_AUDIENCE
+        value: aashvo-clients
+      - key: JWT_ACCESS_TTL_SECONDS
+        value: 900
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: 30
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: WEB_APP_URL
+        value: https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app,https://aashvo-git-staging-mvp-fa-10591b-abdul-rehman-ansari-s-projects.vercel.app
+      - key: TRUST_PROXY
+        value: "1"
+      - key: THROTTLE_TTL_MS
+        value: 60000
+      - key: THROTTLE_LIMIT
+        value: 120
+      - key: STORAGE_PROVIDER
+        value: cloud
+      - key: CLOUDFLARE_R2_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_R2_ACCESS_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: CLOUDFLARE_R2_BUCKET_NAME
+        value: aashvo-staging-public
+      - key: CLOUDFLARE_R2_PUBLIC_URL
+        value: https://cdn.staging.aashvo.in
+      - key: AWS_REGION
+        value: ap-south-1
+      - key: AWS_S3_PRIVATE_BUCKET
+        value: aashvo-staging-vault
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+

@@ -1,17 +1,22 @@
 import { test, expect } from '@playwright/test';
 
-const PREVIEW_URL = 'https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app';
-const BYPASS_SECRET = 'psAYTdgheJ73qc6oV6AVSfd1DzAaokDK';
+const PREVIEW_URL = process.env.STAGING_PREVIEW_URL || 'https://aashvo-d5p98ri5p-abdul-rehman-ansari-s-projects.vercel.app';
+const BYPASS_SECRET = process.env.VERCEL_PROTECTION_BYPASS || '';
+
+function getTargetUrl(path: string = '/'): string {
+  const base = `${PREVIEW_URL}${path}`;
+  if (!BYPASS_SECRET) return base;
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${BYPASS_SECRET}`;
+}
 
 test.describe('AASHVO Phase 3: Staging Preview Smoke Tests', () => {
   test.use({
-    extraHTTPHeaders: {
-      'x-vercel-protection-bypass': BYPASS_SECRET,
-    },
+    extraHTTPHeaders: BYPASS_SECRET ? { 'x-vercel-protection-bypass': BYPASS_SECRET } : {},
   });
 
   test('Smoke 01: Preview Homepage renders brand, title, and initial DOM correctly', async ({ page }) => {
-    await page.goto(`${PREVIEW_URL}/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${BYPASS_SECRET}`);
+    await page.goto(getTargetUrl('/'));
     await page.waitForLoadState('domcontentloaded');
 
     await expect(page).toHaveTitle(/Aashvo/);
@@ -21,7 +26,7 @@ test.describe('AASHVO Phase 3: Staging Preview Smoke Tests', () => {
   });
 
   test('Smoke 02: Discovery Section category tabs and filters mount on staging preview', async ({ page }) => {
-    await page.goto(`${PREVIEW_URL}/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${BYPASS_SECRET}`);
+    await page.goto(getTargetUrl('/'));
     await page.waitForLoadState('domcontentloaded');
 
     const discovery = page.locator('#discovery-section');
@@ -38,7 +43,7 @@ test.describe('AASHVO Phase 3: Staging Preview Smoke Tests', () => {
   });
 
   test('Smoke 03: Modals render smoothly in preview environment', async ({ page }) => {
-    await page.goto(`${PREVIEW_URL}/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${BYPASS_SECRET}`);
+    await page.goto(getTargetUrl('/'));
     await page.waitForLoadState('domcontentloaded');
 
     // 1. Auth Modal
@@ -62,7 +67,7 @@ test.describe('AASHVO Phase 3: Staging Preview Smoke Tests', () => {
 
   test('Smoke 04: Mobile responsive view on staging preview', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${PREVIEW_URL}/?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${BYPASS_SECRET}`);
+    await page.goto(getTargetUrl('/'));
     await page.waitForLoadState('domcontentloaded');
 
     // Verify zero horizontal overflow on mobile
