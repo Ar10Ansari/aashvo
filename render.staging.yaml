@@ -11,7 +11,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    branch: staging/mvp-fasttrack-candidate
+    branch: infra/neon-staging
     buildCommand: npm ci --include=dev && npm run contracts:build && npm --workspace=apps/api run prisma:generate && npm --workspace=apps/api run build
     preDeployCommand: npm --workspace=apps/api exec prisma migrate deploy
     startCommand: npm --workspace=apps/api run start
@@ -27,8 +27,11 @@ services:
       - key: ENABLE_SWAGGER
         value: "true"
 
-      # Dedicated Staging PostgreSQL Database Credentials (sync: false)
+      # Dedicated Neon Staging PostgreSQL Database Credentials (sync: false)
       # DO NOT USE PRODUCTION DATABASE CREDENTIALS
+      # Target Database: aashvo_staging on Neon AWS Singapore (ep-snowy-hall-bi49p4m9)
+      # Pooled DATABASE_URL: postgresql://aashvo_staging_owner:<PASSWORD>@ep-snowy-hall-bi49p4m9-pooler.c-5.ap-southeast-1.aws.neon.tech/aashvo_staging?sslmode=require&pgbouncer=true
+      # Direct DIRECT_URL:   postgresql://aashvo_staging_owner:<PASSWORD>@ep-snowy-hall-bi49p4m9.c-5.ap-southeast-1.aws.neon.tech/aashvo_staging?sslmode=require
       - key: DATABASE_URL
         sync: false
       - key: DIRECT_URL

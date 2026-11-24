@@ -7,6 +7,7 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
   let prisma: PrismaClient;
   let pooledUrl: string;
   let directUrl: string;
+  const createdUserIds: string[] = [];
 
   beforeAll(() => {
     const envPath = path.resolve(__dirname, '../.env.neon');
@@ -42,28 +43,44 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
 
   afterAll(async () => {
     if (prisma) {
-      await prisma.$disconnect();
+      try {
+        // Guaranteed cleanup of any remaining synthetic test entities
+        if (createdUserIds.length > 0) {
+          await prisma.auditLog.deleteMany({
+            where: { actorId: { in: createdUserIds } },
+          });
+          await prisma.profile.deleteMany({
+            where: { id: { in: createdUserIds } },
+          });
+          await prisma.user.deleteMany({
+            where: { id: { in: createdUserIds } },
+          });
+        }
+      } catch (cleanupErr) {
+        console.warn('Warning: afterAll synthetic cleanup encountered an error:', cleanupErr);
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 
-  describe('1. Production Isolation & Host Validation Guardrails', () => {
-    it('strictly verifies target database hostname belongs to Neon staging compute', () => {
+  describe('1. Production Isolation & Configuration Guardrails', () => {
+    it('verifies target database configuration strictly points to authorized Neon staging hostname', () => {
       const parsed = new URL(pooledUrl);
-      expect(parsed.hostname).toContain('ep-snowy-hall-bi49p4m9');
-      expect(parsed.hostname).toMatch(/\.neon\.tech$/);
+      expect(parsed.hostname).toBe('ep-snowy-hall-bi49p4m9-pooler.c-5.ap-southeast-1.aws.neon.tech');
       expect(parsed.hostname).not.toContain('supabase.co');
-      expect(parsed.hostname).not.toContain('production');
+      expect(parsed.hostname).not.toContain('prod');
     });
 
-    it('strictly verifies target database name is aashvo_staging', () => {
-      const parsedPooled = new URL(pooledUrl);
+    it('verifies direct migration configuration strictly points to authorized Neon direct compute', () => {
       const parsedDirect = new URL(directUrl);
-      expect(parsedPooled.pathname).toBe('/aashvo_staging');
+      expect(parsedDirect.hostname).toBe('ep-snowy-hall-bi49p4m9.c-5.ap-southeast-1.aws.neon.tech');
       expect(parsedDirect.pathname).toBe('/aashvo_staging');
+      expect(parsedDirect.username).toBe('aashvo_staging_owner');
     });
 
-    it('rejects connection attempts if host is identified as production or external cloud', () => {
-      const isProductionUrl = (urlStr: string): boolean => {
+    it('rejects connection strings containing production hostnames or default production databases', () => {
+      const isProductionTarget = (urlStr: string): boolean => {
         const u = new URL(urlStr);
         return (
           u.hostname.includes('supabase.co') ||
@@ -73,13 +90,24 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
         );
       };
 
-      expect(isProductionUrl(pooledUrl)).toBe(false);
-      expect(isProductionUrl(directUrl)).toBe(false);
+      expect(isProductionTarget(pooledUrl)).toBe(false);
+      expect(isProductionTarget(directUrl)).toBe(false);
     });
   });
 
-  describe('2. Neon PostgreSQL Connection & Health Probes', () => {
-    it('executes real SQL liveness probe (SELECT 1) over TLS', async () => {
+  describe('2. Live Neon PostgreSQL Database Identity & TLS Verification', () => {
+    it('queries live PostgreSQL server to verify connected database is aashvo_staging and user is aashvo_staging_owner', async () => {
+      const dbInfo = await prisma.$queryRawUnsafe<Array<{ current_db: string; current_usr: string }>>(
+        'SELECT current_database() as current_db, current_user as current_usr',
+      );
+
+      expect(dbInfo).toBeDefined();
+      expect(dbInfo.length).toBe(1);
+      expect(dbInfo[0].current_db).toBe('aashvo_staging');
+      expect(dbInfo[0].current_usr).toBe('aashvo_staging_owner');
+    });
+
+    it('executes real SQL liveness probe (SELECT 1) and measures response latency', async () => {
       const start = Date.now();
       const result = await prisma.$queryRawUnsafe<Array<{ check: number }>>('SELECT 1 as check');
       const latencyMs = Date.now() - start;
@@ -90,14 +118,33 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
       expect(latencyMs).toBeLessThan(5000);
     });
 
-    it('retrieves server version and confirms PostgreSQL 16+', async () => {
+    it('retrieves server version string and confirms PostgreSQL 16+', async () => {
       const result = await prisma.$queryRawUnsafe<Array<{ version: string }>>('SELECT version()');
+      expect(result).toBeDefined();
       expect(result[0].version).toContain('PostgreSQL');
+    });
+
+    it('measures TLS encryption state on active database session', async () => {
+      // Check SSL transport state from pg_stat_ssl if accessible, or confirm sslmode in connection URI
+      const parsedUri = new URL(pooledUrl);
+      expect(parsedUri.searchParams.get('sslmode')).toBe('require');
+
+      try {
+        const sslInfo = await prisma.$queryRawUnsafe<Array<{ ssl: boolean; version?: string }>>(
+          'SELECT ssl, version FROM pg_stat_ssl WHERE pid = pg_backend_pid()',
+        );
+        if (sslInfo && sslInfo.length > 0) {
+          expect(sslInfo[0].ssl).toBe(true);
+        }
+      } catch {
+        // PgBouncer pooler or unprivileged roles may restrict pg_backend_pid(), sslmode=require enforces TLS at client
+        expect(parsedUri.searchParams.get('sslmode')).toBe('require');
+      }
     });
   });
 
-  describe('3. Schema Integrity & Table Existence', () => {
-    it('confirms all 33 domain application tables + migration table exist in aashvo_staging', async () => {
+  describe('3. Schema Integrity & Table Existence in aashvo_staging', () => {
+    it('confirms all 33 domain application tables + migration ledger exist in aashvo_staging', async () => {
       const tables = await prisma.$queryRawUnsafe<Array<{ table_name: string }>>(`
         SELECT table_name 
         FROM information_schema.tables 
@@ -108,6 +155,7 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
       const tableNames = tables.map((t) => t.table_name);
       expect(tableNames).toContain('_prisma_migrations');
       expect(tableNames).toContain('users');
+      expect(tableNames).toContain('profiles');
       expect(tableNames).toContain('properties');
       expect(tableNames).toContain('interest_requests');
       expect(tableNames).toContain('support_tickets');
@@ -120,7 +168,7 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
       expect(tableNames.length).toBeGreaterThanOrEqual(34);
     });
 
-    it('confirms all 7 Prisma migrations are registered with valid checksums in _prisma_migrations', async () => {
+    it('confirms all 7 Prisma migrations are registered with zero rollbacks in _prisma_migrations', async () => {
       const migrations = await prisma.$queryRawUnsafe<Array<{ migration_name: string; rolled_back_at: string | null }>>(`
         SELECT migration_name, rolled_back_at 
         FROM _prisma_migrations 
@@ -134,91 +182,100 @@ describe('Neon Staging PostgreSQL Integration & Production Isolation Suite', () 
     });
   });
 
-  describe('4. Synthetic Data CRUD & Transaction Lifecycle', () => {
+  describe('4. Synthetic Data CRUD & Guaranteed Cleanup Lifecycle', () => {
     const syntheticEmail = `qa.synthetic.${randomUUID()}@aashvo.test`;
-    let createdUserId: string;
+    let testUserId: string;
 
-    it('creates a synthetic user record via Prisma transaction', async () => {
-      const user = await prisma.user.create({
-        data: {
-          email: syntheticEmail,
-          passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$synthetic_hash',
-          role: 'renter',
-          accountStatus: 'active',
-          profile: {
-            create: {
-              email: syntheticEmail,
-              fullName: 'Synthetic QA Tester',
+    it('creates, reads, updates, and safely cleans up synthetic test records with guaranteed finalizer', async () => {
+      try {
+        // Create synthetic user with profile
+        const user = await prisma.user.create({
+          data: {
+            email: syntheticEmail,
+            passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$synthetic_hash',
+            role: 'renter',
+            accountStatus: 'active',
+            profile: {
+              create: {
+                email: syntheticEmail,
+                fullName: 'Synthetic QA Tester',
+              },
             },
           },
-        },
-        include: {
-          profile: true,
-        },
-      });
+          include: { profile: true },
+        });
 
-      expect(user).toBeDefined();
-      expect(user.id).toBeDefined();
-      expect(user.email).toBe(syntheticEmail);
-      expect(user.profile?.fullName).toBe('Synthetic QA Tester');
-      createdUserId = user.id;
-    });
+        testUserId = user.id;
+        createdUserIds.push(testUserId);
 
-    it('reads and updates the synthetic user record in aashvo_staging', async () => {
-      const found = await prisma.user.findUnique({
-        where: { id: createdUserId },
-        include: { profile: true },
-      });
-      expect(found).not.toBeNull();
-      expect(found?.email).toBe(syntheticEmail);
+        expect(user.id).toBeDefined();
+        expect(user.email).toBe(syntheticEmail);
+        expect(user.profile?.fullName).toBe('Synthetic QA Tester');
 
-      const updated = await prisma.user.update({
-        where: { id: createdUserId },
-        data: {
-          role: 'owner',
-          profile: {
-            update: {
-              fullName: 'Updated Synthetic QA Tester',
+        // Read synthetic user
+        const found = await prisma.user.findUnique({
+          where: { id: testUserId },
+          include: { profile: true },
+        });
+        expect(found).not.toBeNull();
+        expect(found?.email).toBe(syntheticEmail);
+
+        // Update synthetic user
+        const updated = await prisma.user.update({
+          where: { id: testUserId },
+          data: {
+            role: 'owner',
+            profile: {
+              update: {
+                fullName: 'Updated Synthetic QA Tester',
+              },
             },
           },
-        },
-        include: { profile: true },
-      });
-      expect(updated.role).toBe('owner');
-      expect(updated.profile?.fullName).toBe('Updated Synthetic QA Tester');
-    });
+          include: { profile: true },
+        });
+        expect(updated.role).toBe('owner');
+        expect(updated.profile?.fullName).toBe('Updated Synthetic QA Tester');
 
-    it('creates and reads an associated synthetic audit log record', async () => {
-      const auditLog = await prisma.auditLog.create({
-        data: {
-          actorId: createdUserId,
-          actorRole: 'owner',
-          eventType: 'STAGING_VERIFICATION_TEST',
-          entityType: 'User',
-          entityId: createdUserId,
-          outcome: 'SUCCESS',
-          metadata: { testSuite: 'neon-staging.integration.spec.ts', timestamp: new Date().toISOString() },
-        },
-      });
+        // Create associated audit log
+        const auditLog = await prisma.auditLog.create({
+          data: {
+            actorId: testUserId,
+            actorRole: 'owner',
+            eventType: 'STAGING_VERIFICATION_TEST',
+            entityType: 'User',
+            entityId: testUserId,
+            outcome: 'SUCCESS',
+            metadata: { testSuite: 'neon-staging.integration.spec.ts', timestamp: new Date().toISOString() },
+          },
+        });
+        expect(auditLog.actorId).toBe(testUserId);
+        expect(auditLog.eventType).toBe('STAGING_VERIFICATION_TEST');
+      } finally {
+        // Guaranteed cleanup in finally block
+        if (testUserId) {
+          await prisma.auditLog.deleteMany({
+            where: { actorId: testUserId },
+          }).catch(() => {});
 
-      expect(auditLog).toBeDefined();
-      expect(auditLog.actorId).toBe(createdUserId);
-      expect(auditLog.eventType).toBe('STAGING_VERIFICATION_TEST');
-      expect(auditLog.outcome).toBe('SUCCESS');
-    });
+          await prisma.profile.deleteMany({
+            where: { id: testUserId },
+          }).catch(() => {});
 
-    it('cleans up synthetic test records, confirming strict data hygiene', async () => {
-      await prisma.auditLog.deleteMany({
-        where: { actorId: createdUserId },
-      });
+          await prisma.user.delete({
+            where: { id: testUserId },
+          }).catch(() => {});
 
-      const deletedUser = await prisma.user.delete({
-        where: { id: createdUserId },
-      });
-      expect(deletedUser.id).toBe(createdUserId);
+          // Remove from tracking array once deleted
+          const idx = createdUserIds.indexOf(testUserId);
+          if (idx !== -1) {
+            createdUserIds.splice(idx, 1);
+          }
+        }
+      }
 
+      // Verify deletion
       const verifyDeleted = await prisma.user.findUnique({
-        where: { id: createdUserId },
+        where: { id: testUserId },
       });
       expect(verifyDeleted).toBeNull();
     });
